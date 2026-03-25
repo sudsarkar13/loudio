@@ -1,0 +1,51 @@
+# Progress — Loudio
+
+## What works
+- Core desktop app boots and runtime bootstrap messaging is wired.
+- File transcription and mic transcription flows are implemented.
+- Mic recording can auto-trigger transcription when stopped.
+- Transcript copy/clear workflows are available.
+- Menu infrastructure is implemented with actionable items and keyboard shortcuts.
+- Main studio interface has been redesigned into a compact, cleaner, icon-forward workflow with reduced text noise.
+- Compact mode can be toggled on/off and restores the general window **to center** when exiting compact mode.
+- Compact mode restore button label now matches product wording: **General**.
+- TypeScript and Tauri production build checks are passing after the latest window-mode updates.
+
+## Recent milestones
+1. Fixed microphone conversion pipeline diagnostics around ffmpeg.
+2. Added UX improvements (auto-transcribe, transcript normalization, clear action).
+3. Introduced app menu architecture and packaging icon wiring.
+4. Transitioned About experience toward native menu About behavior.
+5. Completed first UI revamp pass.
+6. Completed second UX-directed refinement pass focused on crispness and lower visual clutter:
+   - removed heavy top marketing copy
+   - converted toolbar to icon-first actions with hover tooltips
+   - tightened spacing and contrast for a more professional desktop look
+   - moved advanced settings into collapsible section.
+7. Completed layout polish pass for density and scaling behavior:
+   - fixed vertical spacing rhythm in settings controls (Task, Auto copy, Timestamps, Advanced)
+   - reduced excessive shell/container padding
+   - improved fill behavior so UI better occupies small and large window sizes with less dead space.
+8. Finalized viewport-fit refinement for compact windows:
+   - set `.loudio-shell` to `min-height: 100dvh` with flex column layout
+   - made `.studio-layout` flex-fill (`flex: 1`) with `min-height: 0`
+   - enforced min-height constraints on workspace/settings containers to eliminate bottom slack
+   - preserved responsive single-column fallback for narrow breakpoints.
+9. Compact/general mode stabilization pass (latest):
+   - changed compact restore button text from `Full` to `General`
+   - confirmed Tauri v2 title bar style values are lowercase (`visible | transparent | overlay`)
+   - updated macOS restore sequence in `app/lib/tauri.ts` to use `setTitleBarStyle("visible")` and staged decoration/resizable/show/focus re-application with small waits on macOS
+   - re-ran validations successfully:
+     - `npm run -s tsc -- --noEmit --pretty false`
+     - `npm run -s tauri build 2>&1`
+
+## Open items
+- Resolve macOS traffic-light controls (close/minimize/zoom) not reappearing after compact → general transition.
+- Determine whether fix requires Rust-side native window restoration in `src-tauri/src/main.rs` instead of (or in addition to) JS-side sequencing.
+- Validate final native About icon behavior in real app runtime (dev + packaged).
+- Confirm no regression in menu interactions after About metadata updates.
+- Run a final interactive usability pass for icon discoverability and keyboard flow.
+
+## Known issues (latest)
+- **Current blocker:** On macOS, titlebar traffic-light controls remain hidden after returning from compact mode, even though decorations/resizable/titleBarStyle restoration calls succeed at build-time validation and window centering works at runtime.
+- Prior runtime error when About icon was configured with path string instead of image data; implementation has been adjusted accordingly and still needs final runtime verification in packaged usage.

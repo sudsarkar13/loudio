@@ -1,0 +1,11 @@
+.DS_Store
+node_modules
+.next
+dist
+build
+coverage
+*.log
+yarn-error.log
+/src-tauri/target
+/src-tauri/gen
+/src-tauri/.cargo
