@@ -31,15 +31,21 @@
    - made `.studio-layout` flex-fill (`flex: 1`) with `min-height: 0`
    - enforced min-height constraints on workspace/settings containers to eliminate bottom slack
    - preserved responsive single-column fallback for narrow breakpoints.
-9. Compact/general mode stabilization pass (latest):
+9. Compact/general mode stabilization pass:
    - changed compact restore button text from `Full` to `General`
    - confirmed Tauri v2 title bar style values are lowercase (`visible | transparent | overlay`)
    - updated macOS restore sequence in `app/lib/tauri.ts` to use `setTitleBarStyle("visible")` and staged decoration/resizable/show/focus re-application with small waits on macOS
-   - re-ran validations successfully:
+10. EULA-gated runtime dependency bootstrap pass (latest):
+   - moved runtime bootstrap trigger to post-EULA acceptance path in `TranscriptionStudio.tsx`
+   - added one-time guard (`hasCompletedRuntimeSetup`) to prevent duplicate bootstrap runs
+   - aligned startup messaging with consent-first flow (`Accept the EULA to continue` → `Preparing runtime dependencies…`)
+   - confirmed compile checks pass:
      - `npm run -s tsc -- --noEmit --pretty false`
-     - `npm run -s tauri build 2>&1`
+     - `cargo check --manifest-path /Users/lexprotech/Documents/GitHub/loudio/src-tauri/Cargo.toml`
 
 ## Open items
+- Validate end-to-end first-run behavior in live Tauri runtime: EULA accept → dependency checks/install attempts → normal app readiness.
+- Consider adding explicit per-package install status rows in UI (ffmpeg / whisper.cpp / python whisper) instead of only aggregate status text.
 - Resolve macOS traffic-light controls (close/minimize/zoom) not reappearing after compact → general transition.
 - Determine whether fix requires Rust-side native window restoration in `src-tauri/src/main.rs` instead of (or in addition to) JS-side sequencing.
 - Validate final native About icon behavior in real app runtime (dev + packaged).
@@ -48,4 +54,5 @@
 
 ## Known issues (latest)
 - **Current blocker:** On macOS, titlebar traffic-light controls remain hidden after returning from compact mode, even though decorations/resizable/titleBarStyle restoration calls succeed at build-time validation and window centering works at runtime.
+- EULA-gated bootstrap is now implemented in code, but first-run interactive verification is still pending to confirm UX timing and messaging under real install conditions (especially when Homebrew/package installs take time).
 - Prior runtime error when About icon was configured with path string instead of image data; implementation has been adjusted accordingly and still needs final runtime verification in packaged usage.
