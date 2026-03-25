@@ -165,12 +165,14 @@ export function TranscriptionStudio() {
 	const [micMimeType, setMicMimeType] = useState<string>("");
 	const [result, setResult] = useState<TranscriptionResponse | null>(null);
 	const [liveTranscript, setLiveTranscript] = useState<string>("");
-	const [status, setStatus] = useState<string>("Preparing runtime…");
+	const [status, setStatus] = useState<string>("Accept the EULA to continue.");
 	const [runtimeBootstrapPercent, setRuntimeBootstrapPercent] =
 		useState<number>(0);
 	const [runtimeBootstrapMessage, setRuntimeBootstrapMessage] =
-		useState<string>("Preparing runtime…");
-	const [isBootstrapping, setIsBootstrapping] = useState<boolean>(true);
+		useState<string>("Waiting for EULA acceptance…");
+	const [isBootstrapping, setIsBootstrapping] = useState<boolean>(false);
+	const [hasCompletedRuntimeSetup, setHasCompletedRuntimeSetup] =
+		useState<boolean>(false);
 	const [isTranscribing, setIsTranscribing] = useState<boolean>(false);
 	const [isMicTranscribing, setIsMicTranscribing] = useState<boolean>(false);
 	const [isRecording, setIsRecording] = useState<boolean>(false);
@@ -248,7 +250,15 @@ export function TranscriptionStudio() {
 	}, []);
 
 	useEffect(() => {
+		if (isCheckingEula || !hasAcceptedEula || hasCompletedRuntimeSetup) {
+			return;
+		}
+
 		let mounted = true;
+		setIsBootstrapping(true);
+		setRuntimeBootstrapPercent(0);
+		setRuntimeBootstrapMessage("Preparing runtime…");
+		setStatus("Preparing runtime…");
 
 		async function init() {
 			try {
@@ -281,7 +291,10 @@ export function TranscriptionStudio() {
 			} finally {
 				bootstrapProgressUnlistenRef.current?.();
 				bootstrapProgressUnlistenRef.current = null;
-				if (mounted) setIsBootstrapping(false);
+				if (mounted) {
+					setIsBootstrapping(false);
+					setHasCompletedRuntimeSetup(true);
+				}
 			}
 		}
 
@@ -292,7 +305,7 @@ export function TranscriptionStudio() {
 			bootstrapProgressUnlistenRef.current?.();
 			bootstrapProgressUnlistenRef.current = null;
 		};
-	}, []);
+	}, [hasAcceptedEula, hasCompletedRuntimeSetup, isCheckingEula]);
 
 	useEffect(() => {
 		settingsRef.current = settings;
@@ -710,7 +723,7 @@ export function TranscriptionStudio() {
 		}
 
 		setHasAcceptedEula(true);
-		setStatus("EULA accepted. You can now use Loudio.");
+		setStatus("EULA accepted. Preparing runtime dependencies…");
 	}
 
 	async function onDeclineEula() {
