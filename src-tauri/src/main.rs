@@ -217,6 +217,52 @@ fn mime_type_to_extension(mime_type: Option<&str>) -> &'static str {
     }
 }
 
+async fn detect_brew_bin() -> Option<String> {
+    if command_available("brew", &["--version"]).await {
+        return Some("brew".to_string());
+    }
+
+    for candidate in ["/opt/homebrew/bin/brew", "/usr/local/bin/brew"] {
+        if command_available(candidate, &["--version"]).await {
+            return Some(candidate.to_string());
+        }
+    }
+
+    None
+}
+
+async fn ensure_homebrew_available() -> anyhow::Result<String> {
+    if let Some(brew_bin) = detect_brew_bin().await {
+        return Ok(brew_bin);
+    }
+
+    if !cfg!(target_os = "macos") {
+        return Err(anyhow!(
+            "Automatic Homebrew installation is only supported on macOS"
+        ));
+    }
+
+    if !command_available("curl", &["--version"]).await {
+        return Err(anyhow!(
+            "curl is required to install Homebrew automatically"
+        ));
+    }
+
+    let install_script =
+        "NONINTERACTIVE=1 CI=1 /bin/bash -c \"$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)\"";
+
+    run_command(
+        "/bin/bash",
+        &["-c".into(), install_script.into()],
+    )
+    .await
+    .context("Failed to run Homebrew installer")?;
+
+    detect_brew_bin().await.ok_or_else(|| {
+        anyhow!("Homebrew installer finished but brew is still not discoverable")
+    })
+}
+
 async fn detect_ffmpeg_bin() -> Option<String> {
     if command_available("ffmpeg", &["-version"]).await {
         return Some("ffmpeg".to_string());
@@ -732,24 +778,44 @@ async fn bootstrap_runtime(app: tauri::AppHandle) -> Result<String, String> {
         messages.push(format!("FFmpeg detected at {ffmpeg_bin}."));
         emit_runtime_bootstrap_progress(&app, 35, "FFmpeg detected.", false);
     } else {
-        messages.push("FFmpeg missing. Attempting Homebrew install...".into());
-        emit_runtime_bootstrap_progress(&app, 35, "FFmpeg missing. Attempting install…", false);
-        if run_command("brew", &["install".into(), "ffmpeg".into()]).await.is_ok() {
-            if let Some(ffmpeg_bin) = detect_ffmpeg_bin().await {
-                messages.push(format!("FFmpeg installed via Homebrew at {ffmpeg_bin}."));
-                emit_runtime_bootstrap_progress(&app, 45, "FFmpeg installed.", false);
-            } else {
-                messages.push("FFmpeg install completed but binary is still not discoverable from Loudio runtime.".into());
+        messages.push("FFmpeg missing. Preparing package manager...".into());
+        emit_runtime_bootstrap_progress(&app, 35, "FFmpeg missing. Preparing package manager…", false);
+
+        match ensure_homebrew_available().await {
+            Ok(brew_bin) => {
+                messages.push(format!("Homebrew ready at {brew_bin}."));
+                if run_command(&brew_bin, &["install".into(), "ffmpeg".into()])
+                    .await
+                    .is_ok()
+                {
+                    if let Some(ffmpeg_bin) = detect_ffmpeg_bin().await {
+                        messages.push(format!("FFmpeg installed via Homebrew at {ffmpeg_bin}."));
+                        emit_runtime_bootstrap_progress(&app, 45, "FFmpeg installed.", false);
+                    } else {
+                        messages.push("FFmpeg install completed but binary is still not discoverable from Loudio runtime.".into());
+                        emit_runtime_bootstrap_progress(
+                            &app,
+                            45,
+                            "FFmpeg installed but not discoverable. Configure LOUDIO_FFMPEG_PATH.",
+                            false,
+                        );
+                    }
+                } else {
+                    messages.push("Failed to auto-install FFmpeg with Homebrew. Install manually with `brew install ffmpeg` or set LOUDIO_FFMPEG_PATH.".into());
+                    emit_runtime_bootstrap_progress(&app, 45, "FFmpeg install failed. Manual install required.", false);
+                }
+            }
+            Err(error) => {
+                messages.push(format!(
+                    "Homebrew unavailable: {error}. Install Homebrew from https://brew.sh and rerun Runtime Bootstrap."
+                ));
                 emit_runtime_bootstrap_progress(
                     &app,
                     45,
-                    "FFmpeg installed but not discoverable. Configure LOUDIO_FFMPEG_PATH.",
+                    "Homebrew unavailable. Install Homebrew manually and retry.",
                     false,
                 );
             }
-        } else {
-            messages.push("Failed to auto-install FFmpeg. Install manually with `brew install ffmpeg` or set LOUDIO_FFMPEG_PATH.".into());
-            emit_runtime_bootstrap_progress(&app, 45, "FFmpeg install failed. Manual install required.", false);
         }
     }
 
@@ -759,14 +825,34 @@ async fn bootstrap_runtime(app: tauri::AppHandle) -> Result<String, String> {
         messages.push("whisper.cpp CLI detected.".into());
         emit_runtime_bootstrap_progress(&app, 65, "whisper.cpp detected.", false);
     } else {
-        messages.push("whisper.cpp missing. Attempting Homebrew install...".into());
-        emit_runtime_bootstrap_progress(&app, 65, "whisper.cpp missing. Attempting install…", false);
-        if run_command("brew", &["install".into(), "whisper-cpp".into()]).await.is_ok() {
-            messages.push("whisper.cpp installed via Homebrew.".into());
-            emit_runtime_bootstrap_progress(&app, 75, "whisper.cpp installed.", false);
-        } else {
-            messages.push("Failed to auto-install whisper.cpp. You can still run Python Whisper profile.".into());
-            emit_runtime_bootstrap_progress(&app, 75, "whisper.cpp install failed. Python profile can still work.", false);
+        messages.push("whisper.cpp missing. Preparing package manager...".into());
+        emit_runtime_bootstrap_progress(&app, 65, "whisper.cpp missing. Preparing package manager…", false);
+
+        match ensure_homebrew_available().await {
+            Ok(brew_bin) => {
+                messages.push(format!("Homebrew ready at {brew_bin}."));
+                if run_command(&brew_bin, &["install".into(), "whisper-cpp".into()])
+                    .await
+                    .is_ok()
+                {
+                    messages.push("whisper.cpp installed via Homebrew.".into());
+                    emit_runtime_bootstrap_progress(&app, 75, "whisper.cpp installed.", false);
+                } else {
+                    messages.push("Failed to auto-install whisper.cpp. You can still run Python Whisper profile.".into());
+                    emit_runtime_bootstrap_progress(&app, 75, "whisper.cpp install failed. Python profile can still work.", false);
+                }
+            }
+            Err(error) => {
+                messages.push(format!(
+                    "Homebrew unavailable: {error}. whisper.cpp can be installed manually later with Homebrew once available."
+                ));
+                emit_runtime_bootstrap_progress(
+                    &app,
+                    75,
+                    "Homebrew unavailable. whisper.cpp auto-install skipped.",
+                    false,
+                );
+            }
         }
     }
 
