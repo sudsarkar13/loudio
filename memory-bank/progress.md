@@ -35,13 +35,24 @@
    - changed compact restore button text from `Full` to `General`
    - confirmed Tauri v2 title bar style values are lowercase (`visible | transparent | overlay`)
    - updated macOS restore sequence in `app/lib/tauri.ts` to use `setTitleBarStyle("visible")` and staged decoration/resizable/show/focus re-application with small waits on macOS
-10. EULA-gated runtime dependency bootstrap pass (latest):
+10. EULA-gated runtime dependency bootstrap pass:
    - moved runtime bootstrap trigger to post-EULA acceptance path in `TranscriptionStudio.tsx`
    - added one-time guard (`hasCompletedRuntimeSetup`) to prevent duplicate bootstrap runs
    - aligned startup messaging with consent-first flow (`Accept the EULA to continue` → `Preparing runtime dependencies…`)
    - confirmed compile checks pass:
      - `npm run -s tsc -- --noEmit --pretty false`
      - `cargo check --manifest-path /Users/lexprotech/Documents/GitHub/loudio/src-tauri/Cargo.toml`
+11. CI/CD release automation pass (latest):
+   - added `.github/workflows/create-release-on-version-bump.yml`
+     - trigger: push to `main` where `package.json` changed
+     - behavior: read current + previous version, only proceed on version change
+     - idempotency: skip when tag already exists
+     - output: create `v<version>` tag and GitHub Release
+   - added `.github/workflows/release-artifacts.yml`
+     - trigger: successful completion of release-creation workflow
+     - resolves release context from commit/tag
+     - builds and attaches Ubuntu `.deb` and macOS `.dmg` artifacts to the created release
+   - converted `.github/workflows/ubuntu-deb.yml` to manual-only fallback (`workflow_dispatch`) to prevent duplicate auto-release uploads
 
 ## Open items
 - Validate end-to-end first-run behavior in live Tauri runtime: EULA accept → dependency checks/install attempts → normal app readiness.
