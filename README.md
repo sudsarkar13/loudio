@@ -4,7 +4,7 @@
 
 # Loudio
 
-**Offline Transcription Studio for macOS (Apple Silicon-first)**  
+**Offline Transcription Studio for macOS + Ubuntu**  
 Loudio is a desktop app built with **Tauri + Next.js** for fast, local transcription of both audio files and microphone recordings.
 
 ## Why Loudio
@@ -25,6 +25,7 @@ Loudio is designed for users who want:
 - 🕒 **Optional timestamp output**
 - 🧩 **Native desktop menu integration** (File/Edit/View/Window/Help)
 - 🍎 **macOS packaging support** (`.app`, `.dmg`) with custom icons
+- 🐧 **Ubuntu packaging support** (`.deb`) for Debian-based Linux distributions
 
 ## Tech Stack
 
@@ -51,9 +52,10 @@ loudio/
 - **Yarn** (project uses Yarn 4)
 - **Rust toolchain** (stable)
 - **Cargo**
-- **macOS** recommended (primary target)
+- **macOS** (for `.app` / `.dmg` builds)
+- **Ubuntu 22.04+** or Debian-based Linux (for `.deb` builds)
 
-> Loudio can bootstrap some runtime dependencies automatically (for example via Homebrew), but having a working local environment is still recommended.
+> Loudio can bootstrap some runtime dependencies automatically at runtime (for example via Homebrew on macOS), but having a working local environment is still recommended.
 
 ## Getting Started
 
@@ -83,13 +85,19 @@ yarn tauri:dev
 yarn build
 ```
 
-### Build desktop app package
+### Build desktop app packages (default target set)
 
 ```bash
 yarn tauri:build
 ```
 
-Outputs are generated under `src-tauri/target` (including macOS app/dmg artifacts when building on macOS).
+### Build Ubuntu `.deb` package only
+
+```bash
+yarn tauri:build:deb
+```
+
+Outputs are generated under `src-tauri/target` (including macOS app/dmg artifacts when building on macOS and `.deb` artifacts when building on Linux).
 
 ## Available Scripts
 
@@ -100,7 +108,8 @@ From `package.json`:
 - `yarn start` — run Next.js production server on port 3000
 - `yarn lint` — run Next.js lint
 - `yarn tauri:dev` — run Tauri desktop app in development
-- `yarn tauri:build` — build Tauri desktop app packages
+- `yarn tauri:build` — build Tauri desktop app packages for the current platform target set
+- `yarn tauri:build:deb` — build Ubuntu/Debian package (`.deb`) only
 
 ## Runtime Notes
 

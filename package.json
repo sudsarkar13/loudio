@@ -10,7 +10,8 @@
     "lint": "next lint",
     "tauri": "tauri",
     "tauri:dev": "tauri dev",
-    "tauri:build": "tauri build"
+    "tauri:build": "tauri build",
+    "tauri:build:deb": "tauri build --bundles deb"
   },
   "dependencies": {
     "@tauri-apps/api": "2.10.1",

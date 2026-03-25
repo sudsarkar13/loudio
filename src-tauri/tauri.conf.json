@@ -18,7 +18,8 @@
           "$APPDATA/runtime/output/**",
           "$APPLOCALDATA/runtime/output/**",
           "$RUNTIME/output/**",
-          "$HOME/Library/Application Support/com.lexprotech.loudio/runtime/output/**"
+          "$HOME/Library/Application Support/com.lexprotech.loudio/runtime/output/**",
+          "$HOME/.local/share/com.lexprotech.loudio/runtime/output/**"
         ]
       }
     },
@@ -34,7 +35,7 @@
   },
   "bundle": {
     "active": true,
-    "targets": ["dmg", "app"],
+    "targets": ["dmg", "app", "deb"],
     "icon": [
       "icons/32x32.png",
       "icons/128x128.png",
