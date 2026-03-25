@@ -1,0 +1,83 @@
+name: Create Release on Version Bump
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - package.json
+
+permissions:
+  contents: write
+
+jobs:
+  create-release:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+
+      - name: Read current version from package.json
+        id: current
+        run: |
+          VERSION=$(node -p "require('./package.json').version")
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "tag=v$VERSION" >> "$GITHUB_OUTPUT"
+
+      - name: Read previous version from package.json
+        id: previous
+        run: |
+          PREVIOUS_VERSION=$(node -e "
+            const { execSync } = require('child_process');
+            try {
+              const raw = execSync('git show HEAD^:package.json', { encoding: 'utf8' });
+              const json = JSON.parse(raw);
+              process.stdout.write(json.version || '');
+            } catch {
+              process.stdout.write('');
+            }
+          ")
+          echo "version=$PREVIOUS_VERSION" >> "$GITHUB_OUTPUT"
+
+      - name: Check whether version was bumped
+        id: bump
+        env:
+          CURRENT_VERSION: ${{ steps.current.outputs.version }}
+          PREVIOUS_VERSION: ${{ steps.previous.outputs.version }}
+        run: |
+          if [ -n "$PREVIOUS_VERSION" ] && [ "$CURRENT_VERSION" != "$PREVIOUS_VERSION" ]; then
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "changed=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Check if tag already exists
+        if: steps.bump.outputs.changed == 'true'
+        id: tag_check
+        env:
+          TAG: ${{ steps.current.outputs.tag }}
+        run: |
+          if git rev-parse "$TAG" >/dev/null 2>&1; then
+            echo "exists=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "exists=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Create tag for new version
+        if: steps.bump.outputs.changed == 'true' && steps.tag_check.outputs.exists == 'false'
+        env:
+          TAG: ${{ steps.current.outputs.tag }}
+        run: |
+          git tag "$TAG"
+          git push origin "$TAG"
+
+      - name: Create GitHub Release
+        if: steps.bump.outputs.changed == 'true' && steps.tag_check.outputs.exists == 'false'
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.current.outputs.tag }}
+          name: Loudio ${{ steps.current.outputs.tag }}
+          generate_release_notes: true
