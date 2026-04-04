@@ -372,10 +372,7 @@ export async function setupDesktopAppMenu(actions: DesktopMenuActions): Promise<
         text: "Minimize",
         accelerator: "CmdOrCtrl+M",
         action: () => {
-          void (async () => {
-            const { getCurrentWindow } = await import("@tauri-apps/api/window");
-            await getCurrentWindow().minimize();
-          })();
+          void minimizeDesktopAppWindow();
         }
       },
       { item: "Maximize" },
@@ -516,6 +513,7 @@ export async function enterCompactWindowMode(): Promise<void> {
   await setWindowBackgroundColor(appWindow, [17, 25, 38, 255]);
   await appWindow.setDecorations(false);
   await appWindow.setResizable(false);
+  await appWindow.setMinimizable(true);
   await appWindow.setAlwaysOnTop(true);
   await appWindow.setSize(new LogicalSize(COMPACT_WINDOW_WIDTH, COMPACT_WINDOW_HEIGHT));
 
@@ -555,6 +553,7 @@ async function restoreGeneralWindowFrame(appWindow: any): Promise<void> {
 
   await appWindow.setAlwaysOnTop(false);
   await appWindow.setResizable(true);
+  await appWindow.setMinimizable(true);
   await setWindowBackgroundColor(appWindow, [11, 17, 27, 255]);
 
   if (isMacOS()) {
@@ -630,6 +629,12 @@ export async function startCompactWindowDrag(): Promise<void> {
   if (!isTauriRuntime()) return;
   const { getCurrentWindow } = await import("@tauri-apps/api/window");
   await getCurrentWindow().startDragging();
+}
+
+export async function minimizeDesktopAppWindow(): Promise<void> {
+  if (!isTauriRuntime()) return;
+  const { getCurrentWindow } = await import("@tauri-apps/api/window");
+  await getCurrentWindow().minimize();
 }
 
 export async function closeDesktopApp(): Promise<void> {
