@@ -55,6 +55,19 @@ function normalizeTranscriptText(text: string): string {
 		.trim();
 }
 
+function appendTranscriptText(existingText: string, nextSegment: string): string {
+	const normalizedNextSegment = normalizeTranscriptText(nextSegment);
+	if (!normalizedNextSegment) {
+		return existingText;
+	}
+
+	if (!existingText.trim()) {
+		return normalizedNextSegment;
+	}
+
+	return `${existingText}\n${normalizedNextSegment}`;
+}
+
 function mergeSettings(incoming: AppSettings | null): AppSettings {
 	if (!incoming) return DEFAULT_SETTINGS;
 	return {
@@ -164,7 +177,9 @@ export function TranscriptionStudio() {
 	const [micBlob, setMicBlob] = useState<Blob | null>(null);
 	const [micMimeType, setMicMimeType] = useState<string>("");
 	const [result, setResult] = useState<TranscriptionResponse | null>(null);
-	const [liveTranscript, setLiveTranscript] = useState<string>("");
+	const [transcriptDraft, setTranscriptDraft] = useState<string>("");
+	const [livePreviewTranscript, setLivePreviewTranscript] =
+		useState<string>("");
 	const [status, setStatus] = useState<string>("Accept the EULA to continue.");
 	const [runtimeBootstrapPercent, setRuntimeBootstrapPercent] =
 		useState<number>(0);
@@ -223,6 +238,7 @@ export function TranscriptionStudio() {
 	const settingsRef = useRef<AppSettings>(DEFAULT_SETTINGS);
 	const audioPathRef = useRef<string>("");
 	const isRecordingRef = useRef<boolean>(false);
+	const transcriptDraftRef = useRef<string>("");
 	const resultRef = useRef<TranscriptionResponse | null>(null);
 	const previewAudioRef = useRef<HTMLAudioElement | null>(null);
 
@@ -311,8 +327,9 @@ export function TranscriptionStudio() {
 		settingsRef.current = settings;
 		audioPathRef.current = audioPath;
 		isRecordingRef.current = isRecording;
+		transcriptDraftRef.current = transcriptDraft;
 		resultRef.current = result;
-	}, [settings, audioPath, isRecording, result]);
+	}, [settings, audioPath, isRecording, transcriptDraft, result]);
 
 	useEffect(() => {
 		void savePersistedSettings(settings);
@@ -393,13 +410,12 @@ export function TranscriptionStudio() {
 		[profiles, settings.profileId],
 	);
 
-	const transcriptText = liveTranscript || result?.text || "";
 	const transcriptWordCount = useMemo(() => {
-		const normalized = transcriptText.trim();
+		const normalized = transcriptDraft.trim();
 		if (!normalized) return 0;
 		return normalized.split(/\s+/).length;
-	}, [transcriptText]);
-	const transcriptCharacterCount = transcriptText.length;
+	}, [transcriptDraft]);
+	const transcriptCharacterCount = transcriptDraft.length;
 
 	const selectedAudioLabel = useMemo(() => {
 		if (!audioPath) return "No file selected";
@@ -937,7 +953,7 @@ export function TranscriptionStudio() {
 		}
 
 		setResult(null);
-		setLiveTranscript("");
+		setLivePreviewTranscript("");
 		setIsTranscribing(true);
 		setStatus("Transcription in progress…");
 
@@ -945,7 +961,7 @@ export function TranscriptionStudio() {
 		transcriptionProgressUnlistenRef.current =
 			await listenTranscriptionProgress((event) => {
 				if (typeof event.partialText === "string") {
-					setLiveTranscript(normalizeTranscriptText(event.partialText));
+					setLivePreviewTranscript(normalizeTranscriptText(event.partialText));
 				}
 				setStatus(event.status);
 			});
@@ -954,15 +970,20 @@ export function TranscriptionStudio() {
 			const response = await startTranscription(audioPath, settings);
 			const normalizedText = normalizeTranscriptText(response.text);
 			const normalizedResponse = { ...response, text: normalizedText };
+			const mergedTranscriptText = appendTranscriptText(
+				transcriptDraftRef.current,
+				normalizedText,
+			);
 
+			setTranscriptDraft(mergedTranscriptText);
 			setResult(normalizedResponse);
-			setLiveTranscript(normalizedText);
+			setLivePreviewTranscript("");
 			setStatus(
 				`Done in ${(response.elapsedMs / 1000).toFixed(2)}s using ${response.modelUsed}.`,
 			);
 
-			if (settings.autoCopy && normalizedText.trim()) {
-				await copyToClipboard(normalizedText);
+			if (settings.autoCopy && mergedTranscriptText.trim()) {
+				await copyToClipboard(mergedTranscriptText);
 				setStatus(
 					`Done and copied to clipboard in ${(response.elapsedMs / 1000).toFixed(2)}s.`,
 				);
@@ -972,13 +993,14 @@ export function TranscriptionStudio() {
 		} finally {
 			transcriptionProgressUnlistenRef.current?.();
 			transcriptionProgressUnlistenRef.current = null;
+			setLivePreviewTranscript("");
 			setIsTranscribing(false);
 		}
 	}
 
 	async function transcribeMicrophoneBlob(blob: Blob): Promise<void> {
 		setResult(null);
-		setLiveTranscript("");
+		setLivePreviewTranscript("");
 		setIsMicTranscribing(true);
 		setStatus("Microphone transcription in progress…");
 
@@ -986,7 +1008,7 @@ export function TranscriptionStudio() {
 		transcriptionProgressUnlistenRef.current =
 			await listenTranscriptionProgress((event) => {
 				if (typeof event.partialText === "string") {
-					setLiveTranscript(normalizeTranscriptText(event.partialText));
+					setLivePreviewTranscript(normalizeTranscriptText(event.partialText));
 				}
 				setStatus(event.status);
 			});
@@ -995,15 +1017,20 @@ export function TranscriptionStudio() {
 			const response = await startMicrophoneTranscription(blob, settings);
 			const normalizedText = normalizeTranscriptText(response.text);
 			const normalizedResponse = { ...response, text: normalizedText };
+			const mergedTranscriptText = appendTranscriptText(
+				transcriptDraftRef.current,
+				normalizedText,
+			);
 
+			setTranscriptDraft(mergedTranscriptText);
 			setResult(normalizedResponse);
-			setLiveTranscript(normalizedText);
+			setLivePreviewTranscript("");
 			setStatus(
 				`Done in ${(response.elapsedMs / 1000).toFixed(2)}s using ${response.modelUsed}.`,
 			);
 
-			if (settings.autoCopy && normalizedText.trim()) {
-				await copyToClipboard(normalizedText);
+			if (settings.autoCopy && mergedTranscriptText.trim()) {
+				await copyToClipboard(mergedTranscriptText);
 				setStatus(
 					`Done and copied to clipboard in ${(response.elapsedMs / 1000).toFixed(2)}s.`,
 				);
@@ -1013,19 +1040,21 @@ export function TranscriptionStudio() {
 		} finally {
 			transcriptionProgressUnlistenRef.current?.();
 			transcriptionProgressUnlistenRef.current = null;
+			setLivePreviewTranscript("");
 			setIsMicTranscribing(false);
 		}
 	}
 
 	function clearTranscriptView() {
 		setResult(null);
-		setLiveTranscript("");
+		setLivePreviewTranscript("");
+		setTranscriptDraft("");
 		setStatus("Transcript view cleared.");
 	}
 
 	async function onCopy() {
-		if (!result?.text) return;
-		await copyToClipboard(result.text);
+		if (!transcriptDraft.trim()) return;
+		await copyToClipboard(transcriptDraft);
 		setStatus("Transcript copied to clipboard.");
 	}
 
@@ -1091,12 +1120,12 @@ export function TranscriptionStudio() {
 			transcribeFile: onTranscribe,
 			toggleMicRecording: onToggleMicRecording,
 			copyTranscript: async () => {
-				if (!resultRef.current?.text) {
+				if (!transcriptDraftRef.current.trim()) {
 					setStatus("No transcript available to copy yet.");
 					return;
 				}
 
-				await copyToClipboard(resultRef.current.text);
+				await copyToClipboard(transcriptDraftRef.current);
 				setStatus("Transcript copied to clipboard.");
 			},
 			clearTranscript: clearTranscriptView,
@@ -1224,7 +1253,7 @@ export function TranscriptionStudio() {
 						<button
 							className="icon-btn"
 							onClick={onCopy}
-							disabled={!result?.text}
+							disabled={!transcriptDraft.trim()}
 							title="Copy transcript"
 							aria-label="Copy transcript">
 							<Copy size={16} />
@@ -1232,7 +1261,7 @@ export function TranscriptionStudio() {
 						<button
 							className="icon-btn"
 							onClick={clearTranscriptView}
-							disabled={!liveTranscript && !result?.text}
+							disabled={!transcriptDraft.trim() && !livePreviewTranscript}
 							title="Clear transcript"
 							aria-label="Clear transcript">
 							<Trash2 size={16} />
@@ -1243,10 +1272,18 @@ export function TranscriptionStudio() {
 
 					<textarea
 						className="textarea transcript-area compact-transcript"
-						readOnly
-						value={transcriptText}
+						value={transcriptDraft}
+						onChange={(event: ChangeEvent<HTMLTextAreaElement>) =>
+							setTranscriptDraft(event.target.value)
+						}
 						placeholder="Transcript will appear here…"
 					/>
+					{livePreviewTranscript ?
+						<div className="transcript-live-preview" aria-live="polite">
+							<p className="transcript-live-label">Live preview</p>
+							<p className="transcript-live-text">{livePreviewTranscript}</p>
+						</div>
+					: null}
 				</section>
 			:	<>
 					<section className="top-strip" aria-label="App status">
@@ -1524,7 +1561,7 @@ export function TranscriptionStudio() {
 										<button
 											className="icon-btn"
 											onClick={onCopy}
-											disabled={!result?.text}
+											disabled={!transcriptDraft.trim()}
 											title="Copy transcript"
 											aria-label="Copy transcript">
 											<Copy size={18} />
@@ -1532,7 +1569,7 @@ export function TranscriptionStudio() {
 										<button
 											className="icon-btn"
 											onClick={clearTranscriptView}
-											disabled={!liveTranscript && !result?.text}
+											disabled={!transcriptDraft.trim() && !livePreviewTranscript}
 											title="Clear transcript"
 											aria-label="Clear transcript">
 											<Trash2 size={18} />
@@ -1584,12 +1621,20 @@ export function TranscriptionStudio() {
 											<span className="pill pill-soft">{result?.modelUsed ?? "—"}</span>
 										</div>
 
-										<textarea
-											className="textarea transcript-area"
-											readOnly
-											value={transcriptText}
-											placeholder="Transcript will appear here…"
-										/>
+									<textarea
+										className="textarea transcript-area"
+										value={transcriptDraft}
+										onChange={(event: ChangeEvent<HTMLTextAreaElement>) =>
+											setTranscriptDraft(event.target.value)
+										}
+										placeholder="Transcript will appear here…"
+									/>
+									{livePreviewTranscript ?
+										<div className="transcript-live-preview" aria-live="polite">
+											<p className="transcript-live-label">Live preview</p>
+											<p className="transcript-live-text">{livePreviewTranscript}</p>
+										</div>
+									: null}
 									</section>
 								</>
 							: 	<>

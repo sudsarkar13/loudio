@@ -440,6 +440,30 @@ summary:focus-visible {
   min-height: 0;
 }
 
+.transcript-live-preview {
+  margin-top: 0.5rem;
+  border: 1px dashed rgba(47, 129, 247, 0.45);
+  border-radius: 8px;
+  background: rgba(47, 129, 247, 0.08);
+  padding: 0.42rem 0.54rem;
+}
+
+.transcript-live-label {
+  margin: 0;
+  font-size: 0.72rem;
+  color: #9bc2ef;
+  font-weight: 600;
+}
+
+.transcript-live-text {
+  margin: 0.22rem 0 0;
+  font-size: 0.8rem;
+  line-height: 1.42;
+  color: #d9e8fb;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
 .helper {
   margin-top: 0.12rem;
   color: var(--text-muted);
