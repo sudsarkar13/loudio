@@ -65,7 +65,7 @@ function appendTranscriptText(existingText: string, nextSegment: string): string
 		return normalizedNextSegment;
 	}
 
-	return `${existingText}\n${normalizedNextSegment}`;
+	return `${existingText}\n\n${normalizedNextSegment}`;
 }
 
 function mergeSettings(incoming: AppSettings | null): AppSettings {
@@ -1119,6 +1119,7 @@ export function TranscriptionStudio() {
 			openAudioFile: onPickAudio,
 			transcribeFile: onTranscribe,
 			toggleMicRecording: onToggleMicRecording,
+			toggleCompactMode: onToggleCompactMode,
 			copyTranscript: async () => {
 				if (!transcriptDraftRef.current.trim()) {
 					setStatus("No transcript available to copy yet.");
@@ -1148,8 +1149,9 @@ export function TranscriptionStudio() {
 			},
 			isAutoCopyEnabled: settings.autoCopy,
 			areTimestampsEnabled: settings.timestamps,
+			isCompactModeEnabled: isCompactMode,
 		});
-	}, [settings.autoCopy, settings.timestamps]);
+	}, [settings.autoCopy, settings.timestamps, isCompactMode]);
 
 	return (
 		<main
