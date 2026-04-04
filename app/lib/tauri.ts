@@ -45,6 +45,7 @@ export interface DesktopMenuActions {
   openAudioFile: () => Promise<void>;
   transcribeFile: () => Promise<void>;
   toggleMicRecording: () => Promise<void>;
+  toggleCompactMode: () => Promise<void>;
   copyTranscript: () => Promise<void>;
   clearTranscript: () => void;
   toggleAutoCopy: () => void;
@@ -52,6 +53,7 @@ export interface DesktopMenuActions {
   bootstrapRuntime: () => Promise<void>;
   isAutoCopyEnabled: boolean;
   areTimestampsEnabled: boolean;
+  isCompactModeEnabled: boolean;
 }
 
 export function isTauriRuntime(): boolean {
@@ -266,6 +268,15 @@ export async function setupDesktopAppMenu(actions: DesktopMenuActions): Promise<
     }
   });
 
+  const compactModeMenuItem = await CheckMenuItem.new({
+    id: "window_toggle_compact_mode",
+    text: "Compact Mode",
+    checked: actions.isCompactModeEnabled,
+    action: () => {
+      void actions.toggleCompactMode();
+    }
+  });
+
   const fileSubmenu = await Submenu.new({
     id: "file",
     text: "File",
@@ -355,7 +366,25 @@ export async function setupDesktopAppMenu(actions: DesktopMenuActions): Promise<
   const windowSubmenu = await Submenu.new({
     id: "window",
     text: "Window",
-    items: [{ item: "Minimize" }, { item: "Maximize" }, { item: "Fullscreen" }, { item: "CloseWindow" }]
+    items: [
+      {
+        id: "window_minimize",
+        text: "Minimize",
+        accelerator: "CmdOrCtrl+M",
+        action: () => {
+          void (async () => {
+            const { getCurrentWindow } = await import("@tauri-apps/api/window");
+            await getCurrentWindow().minimize();
+          })();
+        }
+      },
+      { item: "Maximize" },
+      { item: "Fullscreen" },
+      { item: "Separator" },
+      compactModeMenuItem,
+      { item: "Separator" },
+      { item: "CloseWindow" }
+    ]
   });
 
   const helpSubmenu = await Submenu.new({
