@@ -10,6 +10,8 @@
 - Compact mode can be toggled on/off and restores the general window **to center** when exiting compact mode.
 - Compact mode restore button label now matches product wording: **General**.
 - TypeScript and Tauri production build checks are passing after the latest window-mode updates.
+- Microphone recordings in History can now be promoted to the primary file source and reprocessed via the standard **Transcribe** button.
+- Re-transcribing a microphone recording now supports updated settings (runtime profile, model selection, language, task) through the same file transcription path used for uploaded audio.
 
 ## Recent milestones
 1. Fixed microphone conversion pipeline diagnostics around ffmpeg.
@@ -53,9 +55,23 @@
      - resolves release context from commit/tag
      - builds and attaches Ubuntu `.deb` and macOS `.dmg` artifacts to the created release
    - converted `.github/workflows/ubuntu-deb.yml` to manual-only fallback (`workflow_dispatch`) to prevent duplicate auto-release uploads
+12. Mic recording re-transcription UX pass:
+   - added per-history-row `Use` action in `TranscriptionStudio.tsx`
+   - selecting `Use` maps the recording absolute path into `audioPath`
+   - activity context is reset (`micBlob`/`micMimeType`) to keep the source deterministic
+   - view auto-switches to **Activity** for immediate re-transcription
+   - added busy-state guard messaging to prevent source switching during active recording/transcription
+   - validated compile health after changes:
+     - `npm run -s tsc -- --noEmit --pretty false`
+     - `cargo check --manifest-path /Users/lexprotech/Documents/GitHub/loudio/src-tauri/Cargo.toml`
 
 ## Open items
 - Validate end-to-end first-run behavior in live Tauri runtime: EULA accept → dependency checks/install attempts → normal app readiness.
+- Run an interactive QA pass for the new mic history **Use → Transcribe** flow with setting changes (small/medium/large model + profile/task/language variations).
+- Confirm no regressions between the three source flows:
+  - uploaded file transcription
+  - immediate auto-transcription after mic stop
+  - history-selected mic file retranscription through the main Transcribe button
 - Consider adding explicit per-package install status rows in UI (ffmpeg / whisper.cpp / python whisper) instead of only aggregate status text.
 - Resolve macOS traffic-light controls (close/minimize/zoom) not reappearing after compact → general transition.
 - Determine whether fix requires Rust-side native window restoration in `src-tauri/src/main.rs` instead of (or in addition to) JS-side sequencing.
