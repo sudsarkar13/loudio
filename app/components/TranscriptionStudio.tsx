@@ -607,6 +607,19 @@ export function TranscriptionStudio() {
 		}
 	}
 
+	function onUseRecordingForTranscription(item: RecordingHistoryItem): void {
+		if (isRecording || isBootstrapping || isMicTranscribing || isTranscribing) {
+			setStatus("Please wait for the current recording/transcription task to finish.");
+			return;
+		}
+
+		setAudioPath(item.absolutePath);
+		setMicBlob(null);
+		setMicMimeType("");
+		setActiveGeneralView("activity");
+		setStatus(`Selected ${item.fileName} for transcription. Adjust settings and click Transcribe.`);
+	}
+
 	async function onPlayRecording(item: RecordingHistoryItem) {
 		const audio = ensurePreviewAudioElement();
 
@@ -1732,12 +1745,19 @@ export function TranscriptionStudio() {
 																aria-label={playing && isPlaybackPlaying ? "Pause playback" : "Play recording"}>
 																{playing && isPlaybackPlaying ? <Pause size={15} /> : <Play size={15} />}
 															</button>
-															<button
-																className="btn btn-danger history-delete-btn"
-																onClick={() => void onDeleteRecording(item.absolutePath)}
-																disabled={deleting || deletingRecordingPath !== null || isDeletingSelectedRecordings}>
-																{deleting ? "Deleting…" : "Delete"}
-															</button>
+									<button
+										className="btn compact-toggle-btn"
+										onClick={() => onUseRecordingForTranscription(item)}
+										disabled={isDeletingSelectedRecordings || deletingRecordingPath !== null}
+										title="Use this recording as the selected transcription file">
+										Use
+									</button>
+									<button
+										className="btn btn-danger history-delete-btn"
+										onClick={() => void onDeleteRecording(item.absolutePath)}
+										disabled={deleting || deletingRecordingPath !== null || isDeletingSelectedRecordings}>
+										{deleting ? "Deleting…" : "Delete"}
+									</button>
 														</div>
 													</article>
 												);
