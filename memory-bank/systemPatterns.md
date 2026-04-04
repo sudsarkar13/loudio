@@ -19,11 +19,17 @@
    - Fallback: `AudioContext` + WAV encoding.
    - Blob sent base64 to backend for conversion/transcription.
 
-4. **Audio conversion robustness**
+4. **Unified transcription entry path for file + mic history**
+   - Fresh mic recordings may auto-transcribe immediately through the microphone command path.
+   - Persisted mic recordings in History can be promoted into `audioPath` via a `Use` action.
+   - Once promoted, retranscription runs through the same `onTranscribe` / `transcribe_audio` file flow as uploaded files.
+   - This keeps runtime/model/language/task setting behavior consistent across both uploaded and microphone-originated files.
+
+5. **Audio conversion robustness**
    - Backend detects ffmpeg path (PATH/env/common locations).
    - Non-WAV mic inputs are normalized to WAV before transcription.
 
-5. **Desktop menu composition**
+6. **Desktop menu composition**
    - Menu built via Tauri API with File/Edit/View/Window/Help.
    - View toggles use `CheckMenuItem` for proper checked state.
    - Help uses predefined native About metadata.
