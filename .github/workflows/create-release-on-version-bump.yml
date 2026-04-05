@@ -61,6 +61,9 @@ jobs:
           ")
 
           echo "version=$PREVIOUS_VERSION" >> "$GITHUB_OUTPUT"
+          if [ -n "$PREVIOUS_VERSION" ]; then
+            echo "tag=v$PREVIOUS_VERSION" >> "$GITHUB_OUTPUT"
+          fi
 
       - name: Check whether version was bumped
         id: bump
@@ -118,6 +121,54 @@ jobs:
           git tag "$TAG"
           git push origin "$TAG"
 
+      - name: Build release summary intro for description
+        if: steps.bump.outputs.changed == 'true' && steps.release_check.outputs.exists == 'false'
+        id: release_intro
+        env:
+          CURRENT_TAG: ${{ steps.current.outputs.tag }}
+          PREVIOUS_TAG: ${{ steps.previous.outputs.tag }}
+          BEFORE_SHA: ${{ github.event.before }}
+          CURRENT_SHA: ${{ github.sha }}
+        run: |
+          RANGE=""
+
+          if [ -n "$PREVIOUS_TAG" ] && git rev-parse "$PREVIOUS_TAG" >/dev/null 2>&1; then
+            RANGE="$PREVIOUS_TAG..$CURRENT_SHA"
+          elif [ -n "$BEFORE_SHA" ] && ! echo "$BEFORE_SHA" | grep -Eq '^0+$'; then
+            RANGE="$BEFORE_SHA..$CURRENT_SHA"
+          fi
+
+          if [ -n "$RANGE" ]; then
+            COMMIT_LINES=$(git log --no-merges --pretty=format:'- %s (%h)' "$RANGE" | head -n 20)
+          else
+            COMMIT_LINES=$(git log --no-merges --pretty=format:'- %s (%h)' -n 20)
+          fi
+
+          if [ -z "$COMMIT_LINES" ]; then
+            COMMIT_LINES='- Internal maintenance updates.'
+          fi
+
+          {
+            echo "body<<EOF"
+            echo "## What changed in this version"
+            echo
+            echo "### Highlights"
+            echo "$COMMIT_LINES"
+            echo
+            echo "### Upgrade context"
+            if [ -n "$PREVIOUS_TAG" ]; then
+              echo "- Previous version: $PREVIOUS_TAG"
+            else
+              echo "- Previous version: not detected"
+            fi
+            echo "- Current version: $CURRENT_TAG"
+            echo
+            echo "---"
+            echo
+            echo "## Auto-generated release notes"
+            echo "EOF"
+          } >> "$GITHUB_OUTPUT"
+
       - name: Create GitHub Release with generated changelog
         if: steps.bump.outputs.changed == 'true' && steps.release_check.outputs.exists == 'false'
         uses: softprops/action-gh-release@v2
@@ -125,6 +176,7 @@ jobs:
           tag_name: ${{ steps.current.outputs.tag }}
           target_commitish: ${{ github.sha }}
           name: Loudio ${{ steps.current.outputs.tag }}
+          body: ${{ steps.release_intro.outputs.body }}
           generate_release_notes: true
           draft: false
           prerelease: false
