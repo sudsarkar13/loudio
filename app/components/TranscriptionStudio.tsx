@@ -31,6 +31,8 @@ import {
 	COMPACT_ANCHOR_STORAGE_KEY,
 	COMPACT_MODE_STORAGE_KEY,
 	EULA_STORAGE_KEY,
+	EULA_VERSION,
+	LEGACY_EULA_STORAGE_KEY,
 	MODEL_OPTIONS,
 } from "@/app/components/transcription-studio/constants";
 import { resolvePreferredMicMimeType, encodeWav } from "@/app/components/transcription-studio/utils/audio";
@@ -44,6 +46,11 @@ import { EulaGate } from "@/app/components/transcription-studio/components/EulaG
 import { RecordingHistoryView } from "@/app/components/transcription-studio/components/RecordingHistoryView";
 import { SettingsPanel } from "@/app/components/transcription-studio/components/SettingsPanel";
 import { WorkspaceActivityView } from "@/app/components/transcription-studio/components/WorkspaceActivityView";
+
+interface EulaAcceptanceRecord {
+	version: string;
+	acceptedAt: string;
+}
 
 export function TranscriptionStudio() {
 	const [profiles, setProfiles] = useState<RuntimeProfile[]>(RUNTIME_PROFILES);
@@ -138,6 +145,32 @@ export function TranscriptionStudio() {
 	const stopRecordingRef = useRef<(() => void) | null>(null);
 	const bootstrapProgressUnlistenRef = useRef<(() => void) | null>(null);
 
+	function hasAcceptedCurrentEulaVersion(): boolean {
+		if (typeof window === "undefined") return true;
+
+		const raw = window.localStorage.getItem(EULA_STORAGE_KEY);
+		if (!raw) return false;
+
+		try {
+			const parsed = JSON.parse(raw) as EulaAcceptanceRecord;
+			return parsed.version === EULA_VERSION;
+		} catch {
+			return false;
+		}
+	}
+
+	function persistCurrentEulaAcceptance(): void {
+		if (typeof window === "undefined") return;
+
+		const acceptance: EulaAcceptanceRecord = {
+			version: EULA_VERSION,
+			acceptedAt: new Date().toISOString(),
+		};
+
+		window.localStorage.setItem(EULA_STORAGE_KEY, JSON.stringify(acceptance));
+		window.localStorage.removeItem(LEGACY_EULA_STORAGE_KEY);
+	}
+
 	useEffect(() => {
 		if (typeof window === "undefined") {
 			setHasAcceptedEula(true);
@@ -145,7 +178,15 @@ export function TranscriptionStudio() {
 			return;
 		}
 
-		const accepted = window.localStorage.getItem(EULA_STORAGE_KEY) === "true";
+		const acceptedCurrentEula = hasAcceptedCurrentEulaVersion();
+		const acceptedLegacyEula =
+			window.localStorage.getItem(LEGACY_EULA_STORAGE_KEY) === "true";
+		const accepted = acceptedCurrentEula || acceptedLegacyEula;
+
+		if (!acceptedCurrentEula && acceptedLegacyEula) {
+			persistCurrentEulaAcceptance();
+		}
+
 		const storedCompactMode =
 			window.localStorage.getItem(COMPACT_MODE_STORAGE_KEY) === "true";
 		const storedAnchor = window.localStorage.getItem(
@@ -323,12 +364,10 @@ export function TranscriptionStudio() {
 
 
 	async function onAcceptEula() {
-		if (typeof window !== "undefined") {
-			window.localStorage.setItem(EULA_STORAGE_KEY, "true");
-		}
+		persistCurrentEulaAcceptance();
 
 		setHasAcceptedEula(true);
-		setStatus("EULA accepted. Preparing runtime dependencies…");
+		setStatus(`License terms (${EULA_VERSION}) accepted. Preparing runtime dependencies…`);
 	}
 
 	async function onDeclineEula() {
@@ -602,7 +641,11 @@ export function TranscriptionStudio() {
 				isCompactMode ? "loudio-shell loudio-shell-compact" : "loudio-shell"
 			}>
 			{!isCheckingEula && !hasAcceptedEula ? (
-				<EulaGate onAccept={onAcceptEula} onDecline={onDeclineEula} />
+				<EulaGate
+					eulaVersion={EULA_VERSION}
+					onAccept={onAcceptEula}
+					onDecline={onDeclineEula}
+				/>
 			) : null}
 
 			{isCompactMode ?
