@@ -22,153 +22,40 @@ import {
 	chooseAudioFile,
 	closeDesktopApp,
 	copyToClipboard,
-	deleteMicrophoneRecording,
 	enterCompactWindowMode,
 	exitCompactWindowMode,
 	getPersistedSettings,
-	getMicrophoneRecordingPlaybackUrl,
 	getRuntimeProfiles,
-	listMicrophoneRecordingHistory,
 	listenRuntimeBootstrapProgress,
-	listenTranscriptionProgress,
 	moveCompactWindowToAnchor,
 	persistCompactWindowPosition,
 	runRuntimeBootstrap,
 	savePersistedSettings,
 	setupDesktopAppMenu,
 	startCompactWindowDrag,
-	startMicrophoneTranscription,
 	type CompactWindowAnchor,
-	startTranscription,
 } from "@/app/lib/tauri";
 import type {
 	AppSettings,
 	RecordingHistoryItem,
 	RuntimeProfile,
-	TranscriptionResponse,
 } from "@/app/lib/types";
-
-function normalizeTranscriptText(text: string): string {
-	return text
-		.replace(/\r?\n+/g, " ")
-		.replace(/\s{2,}/g, " ")
-		.trim();
-}
-
-function appendTranscriptText(existingText: string, nextSegment: string): string {
-	const normalizedNextSegment = normalizeTranscriptText(nextSegment);
-	if (!normalizedNextSegment) {
-		return existingText;
-	}
-
-	if (!existingText.trim()) {
-		return normalizedNextSegment;
-	}
-
-	return `${existingText}\n\n${normalizedNextSegment}`;
-}
-
-function mergeSettings(incoming: AppSettings | null): AppSettings {
-	if (!incoming) return DEFAULT_SETTINGS;
-	return {
-		...DEFAULT_SETTINGS,
-		...incoming,
-	};
-}
-
-function resolvePreferredMicMimeType(): string {
-	if (typeof window === "undefined" || typeof MediaRecorder === "undefined")
-		return "";
-
-	const candidates = ["audio/webm;codecs=opus", "audio/webm", "audio/mp4"];
-	return (
-		candidates.find((mimeType: string) =>
-			MediaRecorder.isTypeSupported(mimeType),
-		) ?? ""
-	);
-}
-
-function flattenAudioChunks(chunks: Float32Array[]): Float32Array {
-	const totalLength = chunks.reduce(
-		(total: number, chunk: Float32Array) => total + chunk.length,
-		0,
-	);
-	const flattened = new Float32Array(totalLength);
-
-	let offset = 0;
-	for (const chunk of chunks) {
-		flattened.set(chunk, offset);
-		offset += chunk.length;
-	}
-
-	return flattened;
-}
-
-function encodeWav(chunks: Float32Array[], sampleRate: number): Blob {
-	const samples = flattenAudioChunks(chunks);
-	const bytesPerSample = 2;
-	const dataLength = samples.length * bytesPerSample;
-	const buffer = new ArrayBuffer(44 + dataLength);
-	const view = new DataView(buffer);
-
-	const writeString = (offset: number, value: string): void => {
-		for (let index = 0; index < value.length; index += 1) {
-			view.setUint8(offset + index, value.charCodeAt(index));
-		}
-	};
-
-	writeString(0, "RIFF");
-	view.setUint32(4, 36 + dataLength, true);
-	writeString(8, "WAVE");
-	writeString(12, "fmt ");
-	view.setUint32(16, 16, true);
-	view.setUint16(20, 1, true);
-	view.setUint16(22, 1, true);
-	view.setUint32(24, sampleRate, true);
-	view.setUint32(28, sampleRate * bytesPerSample, true);
-	view.setUint16(32, bytesPerSample, true);
-	view.setUint16(34, 16, true);
-	writeString(36, "data");
-	view.setUint32(40, dataLength, true);
-
-	let offset = 44;
-	for (let index = 0; index < samples.length; index += 1) {
-		const sample = Math.max(-1, Math.min(1, samples[index]));
-		const intSample = sample < 0 ? sample * 0x8000 : sample * 0x7fff;
-		view.setInt16(offset, intSample, true);
-		offset += 2;
-	}
-
-	return new Blob([buffer], { type: "audio/wav" });
-}
-
-const EULA_STORAGE_KEY = "loudio:eula:accepted:v1";
-const COMPACT_MODE_STORAGE_KEY = "loudio:ui:compact-mode:v1";
-const COMPACT_ANCHOR_STORAGE_KEY = "loudio:ui:compact-anchor:v1";
-const MODEL_OPTIONS: string[] = ["small", "medium", "large"];
-
-function formatRecordingSize(bytes: number): string {
-	if (bytes < 1024) return `${bytes} B`;
-	if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
-	return `${(bytes / (1024 * 1024)).toFixed(2)} MB`;
-}
-
-function formatRecordingDate(isoDate: string): string {
-	const parsed = new Date(isoDate);
-	if (Number.isNaN(parsed.getTime())) {
-		return isoDate;
-	}
-
-	return parsed.toLocaleString();
-}
-
-function formatPlaybackTime(seconds: number): string {
-	if (!Number.isFinite(seconds) || seconds <= 0) return "0:00";
-	const rounded = Math.floor(seconds);
-	const mins = Math.floor(rounded / 60);
-	const secs = rounded % 60;
-	return `${mins}:${secs.toString().padStart(2, "0")}`;
-}
+import {
+	COMPACT_ANCHOR_STORAGE_KEY,
+	COMPACT_MODE_STORAGE_KEY,
+	EULA_STORAGE_KEY,
+	MODEL_OPTIONS,
+} from "@/app/components/transcription-studio/constants";
+import {
+	encodeWav,
+	formatPlaybackTime,
+	formatRecordingDate,
+	formatRecordingSize,
+	mergeSettings,
+	resolvePreferredMicMimeType,
+} from "@/app/components/transcription-studio/utils";
+import { useTranscriptionController } from "@/app/components/transcription-studio/useTranscriptionController";
+import { useRecordingHistoryController } from "@/app/components/transcription-studio/useRecordingHistoryController";
 
 export function TranscriptionStudio() {
 	const [profiles, setProfiles] = useState<RuntimeProfile[]>(RUNTIME_PROFILES);
@@ -176,11 +63,23 @@ export function TranscriptionStudio() {
 	const [audioPath, setAudioPath] = useState<string>("");
 	const [micBlob, setMicBlob] = useState<Blob | null>(null);
 	const [micMimeType, setMicMimeType] = useState<string>("");
-	const [result, setResult] = useState<TranscriptionResponse | null>(null);
-	const [transcriptDraft, setTranscriptDraft] = useState<string>("");
-	const [livePreviewTranscript, setLivePreviewTranscript] =
-		useState<string>("");
-	const [status, setStatus] = useState<string>("Accept the EULA to continue.");
+	const {
+		result,
+		transcriptDraft,
+		livePreviewTranscript,
+		status,
+		isTranscribing,
+		isMicTranscribing,
+		transcriptDraftRef,
+		setStatus,
+		setTranscriptDraft,
+		onTranscribe: runTranscription,
+		transcribeMicrophoneBlob: runMicrophoneTranscription,
+		clearTranscriptView: clearTranscriptDraft,
+		onCopy: copyTranscriptDraft,
+		transcriptWordCount,
+		transcriptCharacterCount,
+	} = useTranscriptionController();
 	const [runtimeBootstrapPercent, setRuntimeBootstrapPercent] =
 		useState<number>(0);
 	const [runtimeBootstrapMessage, setRuntimeBootstrapMessage] =
@@ -188,8 +87,6 @@ export function TranscriptionStudio() {
 	const [isBootstrapping, setIsBootstrapping] = useState<boolean>(false);
 	const [hasCompletedRuntimeSetup, setHasCompletedRuntimeSetup] =
 		useState<boolean>(false);
-	const [isTranscribing, setIsTranscribing] = useState<boolean>(false);
-	const [isMicTranscribing, setIsMicTranscribing] = useState<boolean>(false);
 	const [isRecording, setIsRecording] = useState<boolean>(false);
 	const [hasAcceptedEula, setHasAcceptedEula] = useState<boolean>(false);
 	const [isCheckingEula, setIsCheckingEula] = useState<boolean>(true);
@@ -198,27 +95,33 @@ export function TranscriptionStudio() {
 		useState<CompactWindowAnchor>("bottom");
 	const [activeGeneralView, setActiveGeneralView] =
 		useState<"activity" | "history">("activity");
-	const [recordingHistory, setRecordingHistory] = useState<
-		RecordingHistoryItem[]
-	>([]);
-	const [isLoadingRecordingHistory, setIsLoadingRecordingHistory] =
-		useState<boolean>(false);
-	const [deletingRecordingPath, setDeletingRecordingPath] = useState<string | null>(
-		null,
-	);
-	const [selectedRecordingPaths, setSelectedRecordingPaths] = useState<string[]>(
-		[],
-	);
-	const [isDeletingSelectedRecordings, setIsDeletingSelectedRecordings] =
-		useState<boolean>(false);
-	const [playingRecordingPath, setPlayingRecordingPath] = useState<string | null>(
-		null,
-	);
-	const [isPlaybackPlaying, setIsPlaybackPlaying] = useState<boolean>(false);
-	const [playbackCurrentSec, setPlaybackCurrentSec] = useState<number>(0);
-	const [playbackDurationSec, setPlaybackDurationSec] = useState<number>(0);
-	const [playbackRate, setPlaybackRate] = useState<number>(1);
-	const [playbackReady, setPlaybackReady] = useState<boolean>(false);
+	const {
+		recordingHistory,
+		isLoadingRecordingHistory,
+		deletingRecordingPath,
+		selectedRecordingPaths,
+		isDeletingSelectedRecordings,
+		playingRecordingPath,
+		isPlaybackPlaying,
+		playbackCurrentSec,
+		playbackDurationSec,
+		playbackRate,
+		playbackReady,
+		allHistorySelected,
+		hasSelectedRecordings,
+		activePlaybackItem,
+		loadRecordingHistory,
+		onDeleteRecording,
+		onToggleSelectRecording,
+		onToggleSelectAllRecordings,
+		onDeleteSelectedRecordings,
+		onDeleteAllRecordings,
+		onPlayRecording,
+		onSeekPlayback,
+		onStepPlayback,
+		onSetPlaybackRate,
+		onToggleActivePlayback,
+	} = useRecordingHistoryController({ setStatus });
 
 	const mediaRecorderRef = useRef<MediaRecorder | null>(null);
 	const mediaStreamRef = useRef<MediaStream | null>(null);
@@ -233,14 +136,6 @@ export function TranscriptionStudio() {
 
 	const stopRecordingRef = useRef<(() => void) | null>(null);
 	const bootstrapProgressUnlistenRef = useRef<(() => void) | null>(null);
-	const transcriptionProgressUnlistenRef = useRef<(() => void) | null>(null);
-
-	const settingsRef = useRef<AppSettings>(DEFAULT_SETTINGS);
-	const audioPathRef = useRef<string>("");
-	const isRecordingRef = useRef<boolean>(false);
-	const transcriptDraftRef = useRef<string>("");
-	const resultRef = useRef<TranscriptionResponse | null>(null);
-	const previewAudioRef = useRef<HTMLAudioElement | null>(null);
 
 	useEffect(() => {
 		if (typeof window === "undefined") {
@@ -324,27 +219,15 @@ export function TranscriptionStudio() {
 	}, [hasAcceptedEula, hasCompletedRuntimeSetup, isCheckingEula]);
 
 	useEffect(() => {
-		settingsRef.current = settings;
-		audioPathRef.current = audioPath;
-		isRecordingRef.current = isRecording;
-		transcriptDraftRef.current = transcriptDraft;
-		resultRef.current = result;
-	}, [settings, audioPath, isRecording, transcriptDraft, result]);
-
-	useEffect(() => {
 		void savePersistedSettings(settings);
 	}, [settings]);
 
 	useEffect(() => {
 		return () => {
-			previewAudioRef.current?.pause();
-			previewAudioRef.current = null;
 			stopRecordingRef.current?.();
 			stopRecordingRef.current = null;
 			bootstrapProgressUnlistenRef.current?.();
 			bootstrapProgressUnlistenRef.current = null;
-			transcriptionProgressUnlistenRef.current?.();
-			transcriptionProgressUnlistenRef.current = null;
 
 			mediaStreamRef.current
 				?.getTracks()
@@ -411,32 +294,11 @@ export function TranscriptionStudio() {
 		[profiles, settings.profileId],
 	);
 
-	const transcriptWordCount = useMemo(() => {
-		const normalized = transcriptDraft.trim();
-		if (!normalized) return 0;
-		return normalized.split(/\s+/).length;
-	}, [transcriptDraft]);
-	const transcriptCharacterCount = transcriptDraft.length;
-
 	const selectedAudioLabel = useMemo(() => {
 		if (!audioPath) return "No file selected";
 		const parts = audioPath.split(/[\\/]/);
 		return parts[parts.length - 1] || audioPath;
 	}, [audioPath]);
-
-	const allHistorySelected =
-		recordingHistory.length > 0 &&
-		recordingHistory.every((item) =>
-			selectedRecordingPaths.includes(item.absolutePath),
-		);
-	const hasSelectedRecordings = selectedRecordingPaths.length > 0;
-	const activePlaybackItem = useMemo(
-		() =>
-			recordingHistory.find(
-				(item: RecordingHistoryItem) => item.absolutePath === playingRecordingPath,
-			) ?? null,
-		[recordingHistory, playingRecordingPath],
-	);
 
 	const busy =
 		isBootstrapping ||
@@ -444,185 +306,6 @@ export function TranscriptionStudio() {
 		isMicTranscribing ||
 		isCheckingEula ||
 		!hasAcceptedEula;
-
-	function resetPlaybackState(): void {
-		setPlayingRecordingPath(null);
-		setIsPlaybackPlaying(false);
-		setPlaybackCurrentSec(0);
-		setPlaybackDurationSec(0);
-		setPlaybackReady(false);
-	}
-
-	function stopPreviewPlayback(clearSource = false): void {
-		const audio = previewAudioRef.current;
-		if (!audio) {
-			resetPlaybackState();
-			return;
-		}
-
-		audio.pause();
-		if (clearSource) {
-			audio.removeAttribute("src");
-			audio.load();
-		}
-
-		resetPlaybackState();
-	}
-
-	function ensurePreviewAudioElement(): HTMLAudioElement {
-		if (previewAudioRef.current) return previewAudioRef.current;
-
-		const audio = new Audio();
-		audio.preload = "metadata";
-		audio.onplay = () => setIsPlaybackPlaying(true);
-		audio.onpause = () => setIsPlaybackPlaying(false);
-		audio.ontimeupdate = () => setPlaybackCurrentSec(audio.currentTime || 0);
-		audio.onloadedmetadata = () => {
-			setPlaybackReady(true);
-			setPlaybackDurationSec(Number.isFinite(audio.duration) ? audio.duration : 0);
-			setPlaybackCurrentSec(audio.currentTime || 0);
-		};
-		audio.onratechange = () => setPlaybackRate(audio.playbackRate || 1);
-		audio.onended = () => {
-			setIsPlaybackPlaying(false);
-			setPlaybackCurrentSec(Number.isFinite(audio.duration) ? audio.duration : 0);
-		};
-		audio.onerror = () => {
-			setStatus("Audio playback failed.");
-			setIsPlaybackPlaying(false);
-		};
-
-		previewAudioRef.current = audio;
-		return audio;
-	}
-
-	async function loadRecordingHistory(options?: {
-		silent?: boolean;
-		statusMessage?: string;
-	}) {
-		const silent = options?.silent ?? false;
-		const statusMessage = options?.statusMessage;
-
-		if (!silent) {
-			setIsLoadingRecordingHistory(true);
-		}
-
-		try {
-			const items = await listMicrophoneRecordingHistory();
-			setRecordingHistory(items);
-			setSelectedRecordingPaths((prev: string[]) => {
-				const available = new Set(items.map((item) => item.absolutePath));
-				return prev.filter((path) => available.has(path));
-			});
-
-			if (statusMessage) {
-				setStatus(statusMessage);
-			}
-		} catch (error) {
-			setStatus(`Failed to load recording history: ${String(error)}`);
-		} finally {
-			if (!silent) {
-				setIsLoadingRecordingHistory(false);
-			}
-		}
-	}
-
-	async function onDeleteRecording(path: string) {
-		setDeletingRecordingPath(path);
-		try {
-			await deleteMicrophoneRecording(path);
-			if (playingRecordingPath === path) {
-				stopPreviewPlayback(true);
-			}
-			await loadRecordingHistory({
-				silent: true,
-				statusMessage: "Recording deleted.",
-			});
-		} catch (error) {
-			setStatus(`Failed to delete recording: ${String(error)}`);
-		} finally {
-			setDeletingRecordingPath(null);
-		}
-	}
-
-	function onToggleSelectRecording(path: string) {
-		setSelectedRecordingPaths((prev: string[]) => {
-			if (prev.includes(path)) {
-				return prev.filter((value) => value !== path);
-			}
-			return [...prev, path];
-		});
-	}
-
-	function onToggleSelectAllRecordings() {
-		const allPaths = recordingHistory.map((item) => item.absolutePath);
-		const allSelected =
-			allPaths.length > 0 &&
-			allPaths.every((path) => selectedRecordingPaths.includes(path));
-
-		setSelectedRecordingPaths(allSelected ? [] : allPaths);
-	}
-
-	async function onDeleteSelectedRecordings() {
-		if (!selectedRecordingPaths.length) {
-			setStatus("Select one or more recordings first.");
-			return;
-		}
-
-		setIsDeletingSelectedRecordings(true);
-		try {
-			const results = await Promise.allSettled(
-				selectedRecordingPaths.map((path) => deleteMicrophoneRecording(path)),
-			);
-			const failed = results.filter((result) => result.status === "rejected").length;
-
-			if (failed > 0) {
-				setStatus(
-					`Deleted ${selectedRecordingPaths.length - failed} recording(s). ${failed} failed.`,
-				);
-			} else {
-				setStatus(`Deleted ${selectedRecordingPaths.length} recording(s).`);
-			}
-
-			stopPreviewPlayback(true);
-			setSelectedRecordingPaths([]);
-			await loadRecordingHistory({ silent: true });
-		} catch (error) {
-			setStatus(`Failed to delete selected recordings: ${String(error)}`);
-		} finally {
-			setIsDeletingSelectedRecordings(false);
-		}
-	}
-
-	async function onDeleteAllRecordings() {
-		if (!recordingHistory.length) {
-			setStatus("No recordings found to delete.");
-			return;
-		}
-
-		setIsDeletingSelectedRecordings(true);
-		try {
-			const paths = recordingHistory.map((item) => item.absolutePath);
-			const results = await Promise.allSettled(
-				paths.map((path) => deleteMicrophoneRecording(path)),
-			);
-			const failed = results.filter((result) => result.status === "rejected").length;
-
-			if (failed > 0) {
-				setStatus(`Deleted ${paths.length - failed} recording(s). ${failed} failed.`);
-			} else {
-				setStatus("All recordings deleted.");
-			}
-
-			stopPreviewPlayback(true);
-			setSelectedRecordingPaths([]);
-			await loadRecordingHistory({ silent: true });
-		} catch (error) {
-			setStatus(`Failed to delete all recordings: ${String(error)}`);
-		} finally {
-			setIsDeletingSelectedRecordings(false);
-		}
-	}
 
 	function onUseRecordingForTranscription(item: RecordingHistoryItem): void {
 		if (isRecording || isBootstrapping || isMicTranscribing || isTranscribing) {
@@ -637,115 +320,6 @@ export function TranscriptionStudio() {
 		setStatus(`Selected ${item.fileName} for transcription. Adjust settings and click Transcribe.`);
 	}
 
-	async function onPlayRecording(item: RecordingHistoryItem) {
-		const audio = ensurePreviewAudioElement();
-
-		if (playingRecordingPath === item.absolutePath) {
-			try {
-				if (audio.paused) {
-					await audio.play();
-					setStatus(`Playing ${item.fileName}`);
-				} else {
-					audio.pause();
-					setStatus("Playback paused.");
-				}
-			} catch (error) {
-				setStatus(`Failed to play recording: ${String(error)}`);
-			}
-			return;
-		}
-
-		setPlaybackReady(false);
-		setPlaybackCurrentSec(0);
-		setPlaybackDurationSec(0);
-		setPlayingRecordingPath(item.absolutePath);
-
-		const convertedUrl = await getMicrophoneRecordingPlaybackUrl(item.absolutePath);
-		const decodedConvertedUrl = (() => {
-			try {
-				return decodeURI(convertedUrl);
-			} catch {
-				return convertedUrl;
-			}
-		})();
-
-		const candidates = Array.from(
-			new Set([
-				convertedUrl,
-				decodedConvertedUrl,
-				`file://${item.absolutePath}`,
-				item.absolutePath,
-			]),
-		);
-
-		let lastError: unknown = null;
-		for (const candidate of candidates) {
-			try {
-				audio.pause();
-				audio.src = candidate;
-				audio.currentTime = 0;
-				audio.playbackRate = playbackRate;
-				audio.load();
-				await audio.play();
-				setStatus(`Playing ${item.fileName}`);
-				return;
-			} catch (error) {
-				lastError = error;
-			}
-		}
-
-		stopPreviewPlayback();
-		setStatus(`Failed to play recording: ${String(lastError ?? "Unknown playback error")}`);
-	}
-
-	function onSeekPlayback(event: ChangeEvent<HTMLInputElement>): void {
-		const audio = previewAudioRef.current;
-		if (!audio) return;
-
-		const nextSec = Number(event.target.value);
-		audio.currentTime = nextSec;
-		setPlaybackCurrentSec(nextSec);
-	}
-
-	function onStepPlayback(deltaSeconds: number): void {
-		const audio = previewAudioRef.current;
-		if (!audio) return;
-
-		const duration = Number.isFinite(audio.duration)
-			? audio.duration
-			: playbackDurationSec;
-		const bounded = Math.max(
-			0,
-			Math.min(duration || Number.MAX_SAFE_INTEGER, audio.currentTime + deltaSeconds),
-		);
-
-		audio.currentTime = bounded;
-		setPlaybackCurrentSec(bounded);
-	}
-
-	function onSetPlaybackRate(nextRate: number): void {
-		setPlaybackRate(nextRate);
-		if (previewAudioRef.current) {
-			previewAudioRef.current.playbackRate = nextRate;
-		}
-	}
-
-	async function onToggleActivePlayback(): Promise<void> {
-		const audio = previewAudioRef.current;
-		if (!audio || !playingRecordingPath) return;
-
-		try {
-			if (audio.paused) {
-				await audio.play();
-				setStatus("Playback resumed.");
-			} else {
-				audio.pause();
-				setStatus("Playback paused.");
-			}
-		} catch (error) {
-			setStatus(`Failed to change playback state: ${String(error)}`);
-		}
-	}
 
 	async function onAcceptEula() {
 		if (typeof window !== "undefined") {
@@ -947,118 +521,21 @@ export function TranscriptionStudio() {
 		}
 	}
 
-	async function onTranscribe() {
-		if (!audioPath) {
-			setStatus("Select an audio file first.");
-			return;
-		}
-
-		setResult(null);
-		setLivePreviewTranscript("");
-		setIsTranscribing(true);
-		setStatus("Transcription in progress…");
-
-		transcriptionProgressUnlistenRef.current?.();
-		transcriptionProgressUnlistenRef.current =
-			await listenTranscriptionProgress((event) => {
-				if (typeof event.partialText === "string") {
-					setLivePreviewTranscript(normalizeTranscriptText(event.partialText));
-				}
-				setStatus(event.status);
-			});
-
-		try {
-			const response = await startTranscription(audioPath, settings);
-			const normalizedText = normalizeTranscriptText(response.text);
-			const normalizedResponse = { ...response, text: normalizedText };
-			const mergedTranscriptText = appendTranscriptText(
-				transcriptDraftRef.current,
-				normalizedText,
-			);
-
-			setTranscriptDraft(mergedTranscriptText);
-			setResult(normalizedResponse);
-			setLivePreviewTranscript("");
-			setStatus(
-				`Done in ${(response.elapsedMs / 1000).toFixed(2)}s using ${response.modelUsed}.`,
-			);
-
-			if (settings.autoCopy && mergedTranscriptText.trim()) {
-				await copyToClipboard(mergedTranscriptText);
-				setStatus(
-					`Done and copied to clipboard in ${(response.elapsedMs / 1000).toFixed(2)}s.`,
-				);
-			}
-		} catch (error) {
-			setStatus(`Transcription failed: ${String(error)}`);
-		} finally {
-			transcriptionProgressUnlistenRef.current?.();
-			transcriptionProgressUnlistenRef.current = null;
-			setLivePreviewTranscript("");
-			setIsTranscribing(false);
-		}
+	async function onTranscribe(): Promise<void> {
+		await runTranscription(audioPath, settings);
 	}
 
 	async function transcribeMicrophoneBlob(blob: Blob): Promise<void> {
-		setResult(null);
-		setLivePreviewTranscript("");
-		setIsMicTranscribing(true);
-		setStatus("Microphone transcription in progress…");
-
-		transcriptionProgressUnlistenRef.current?.();
-		transcriptionProgressUnlistenRef.current =
-			await listenTranscriptionProgress((event) => {
-				if (typeof event.partialText === "string") {
-					setLivePreviewTranscript(normalizeTranscriptText(event.partialText));
-				}
-				setStatus(event.status);
-			});
-
-		try {
-			const response = await startMicrophoneTranscription(blob, settings);
-			const normalizedText = normalizeTranscriptText(response.text);
-			const normalizedResponse = { ...response, text: normalizedText };
-			const mergedTranscriptText = appendTranscriptText(
-				transcriptDraftRef.current,
-				normalizedText,
-			);
-
-			setTranscriptDraft(mergedTranscriptText);
-			setResult(normalizedResponse);
-			setLivePreviewTranscript("");
-			setStatus(
-				`Done in ${(response.elapsedMs / 1000).toFixed(2)}s using ${response.modelUsed}.`,
-			);
-
-			if (settings.autoCopy && mergedTranscriptText.trim()) {
-				await copyToClipboard(mergedTranscriptText);
-				setStatus(
-					`Done and copied to clipboard in ${(response.elapsedMs / 1000).toFixed(2)}s.`,
-				);
-			}
-		} catch (error) {
-			setStatus(`Microphone transcription failed: ${String(error)}`);
-		} finally {
-			transcriptionProgressUnlistenRef.current?.();
-			transcriptionProgressUnlistenRef.current = null;
-			setLivePreviewTranscript("");
-			setIsMicTranscribing(false);
-		}
+		await runMicrophoneTranscription(blob, settings);
 	}
 
-	function clearTranscriptView() {
-		setResult(null);
-		setLivePreviewTranscript("");
-		setTranscriptDraft("");
-		setStatus("Transcript view cleared.");
+	function clearTranscriptView(): void {
+		clearTranscriptDraft();
 	}
 
-	async function onCopy() {
-		if (!transcriptDraft.trim()) return;
-		await copyToClipboard(transcriptDraft);
-		setStatus("Transcript copied to clipboard.");
+	async function onCopy(): Promise<void> {
+		await copyTranscriptDraft();
 	}
-
 
 	async function onToggleCompactMode() {
 		const nextMode = !isCompactMode;
