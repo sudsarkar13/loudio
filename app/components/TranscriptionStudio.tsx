@@ -1,18 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import type { ChangeEvent } from "react";
-import {
-	Copy,
-	FolderOpen,
-	Mic,
-	Move,
-	Pause,
-	Play,
-	Settings2,
-	Sparkles,
-	Trash2,
-} from "lucide-react";
+import { Move } from "lucide-react";
 import {
 	DEFAULT_SETTINGS,
 	LANGUAGES,
@@ -56,6 +45,12 @@ import {
 } from "@/app/components/transcription-studio/utils";
 import { useTranscriptionController } from "@/app/components/transcription-studio/useTranscriptionController";
 import { useRecordingHistoryController } from "@/app/components/transcription-studio/useRecordingHistoryController";
+import { CompactToolbar } from "@/app/components/transcription-studio/components/CompactToolbar";
+import { EulaGate } from "@/app/components/transcription-studio/components/EulaGate";
+import { RecordingHistoryView } from "@/app/components/transcription-studio/components/RecordingHistoryView";
+import { SettingsPanel } from "@/app/components/transcription-studio/components/SettingsPanel";
+import { TranscriptPanel } from "@/app/components/transcription-studio/components/TranscriptPanel";
+import { WorkspaceActivityView } from "@/app/components/transcription-studio/components/WorkspaceActivityView";
 
 export function TranscriptionStudio() {
 	const [profiles, setProfiles] = useState<RuntimeProfile[]>(RUNTIME_PROFILES);
@@ -630,29 +625,9 @@ export function TranscriptionStudio() {
 			className={
 				isCompactMode ? "loudio-shell loudio-shell-compact" : "loudio-shell"
 			}>
-			{!isCheckingEula && !hasAcceptedEula ?
-				<section
-					className="card stack eula-card"
-					role="dialog"
-					aria-modal="true"
-					aria-labelledby="eula-title">
-					<h2 id="eula-title">End User License Agreement</h2>
-					<p className="helper eula-copy">
-						Loudio performs local transcription on your machine. By continuing,
-						you agree to use the software at your own discretion and in
-						compliance with applicable privacy and consent laws for recorded
-						audio.
-					</p>
-					<div className="btn-row">
-						<button className="btn btn-primary" onClick={onAcceptEula}>
-							Accept & Continue
-						</button>
-						<button className="btn btn-danger" onClick={onDeclineEula}>
-							Decline & Exit
-						</button>
-					</div>
-				</section>
-			:	null}
+			{!isCheckingEula && !hasAcceptedEula ? (
+				<EulaGate onAccept={onAcceptEula} onDecline={onDeclineEula} />
+			) : null}
 
 			{isCompactMode ?
 				<section className="compact-shell">
@@ -692,75 +667,30 @@ export function TranscriptionStudio() {
 						</div>
 					</div>
 
-					<div
+					<CompactToolbar
 						className="toolbar-icons compact-toolbar"
-						role="toolbar"
-						aria-label="Transcription actions">
-						<button
-							className="icon-btn"
-							onClick={onPickAudio}
-							disabled={busy || isRecording}
-							title="Choose audio file"
-							aria-label="Choose audio file">
-							<FolderOpen size={16} />
-						</button>
-						<button
-							className={isRecording ? "icon-btn icon-btn-danger" : "icon-btn"}
-							onClick={onToggleMicRecording}
-							disabled={busy}
-							title={isRecording ? "Stop recording" : "Record microphone"}
-							aria-label={isRecording ? "Stop recording" : "Record microphone"}>
-							<Mic size={16} />
-						</button>
-						<button
-							className="icon-btn icon-btn-primary"
-							onClick={onTranscribe}
-							disabled={busy || isRecording || !audioPath}
-							title={
-								isTranscribing ? "Transcribing file" : (
-									"Transcribe selected file"
-								)
-							}
-							aria-label="Transcribe selected file">
-							<Sparkles size={16} />
-						</button>
-						<button
-							className="icon-btn"
-							onClick={onCopy}
-							disabled={!transcriptDraft.trim()}
-							title="Copy transcript"
-							aria-label="Copy transcript">
-							<Copy size={16} />
-						</button>
-						<button
-							className="icon-btn"
-							onClick={clearTranscriptView}
-							disabled={!transcriptDraft.trim() && !livePreviewTranscript}
-							title="Clear transcript"
-							aria-label="Clear transcript">
-							<Trash2 size={16} />
-						</button>
-					</div>
+						iconSize={16}
+						busy={busy}
+						isRecording={isRecording}
+						isTranscribing={isTranscribing}
+						audioPath={audioPath}
+						transcriptDraft={transcriptDraft}
+						livePreviewTranscript={livePreviewTranscript}
+						onPickAudio={onPickAudio}
+						onToggleMicRecording={onToggleMicRecording}
+						onTranscribe={onTranscribe}
+						onCopy={onCopy}
+						onClearTranscript={clearTranscriptView}
+					/>
 
 					<div className="status status-modern compact-status">{status}</div>
 
-					<textarea
-						className="textarea transcript-area compact-transcript"
-						value={transcriptDraft}
-						onChange={(event: ChangeEvent<HTMLTextAreaElement>) =>
-							setTranscriptDraft(event.target.value)
-						}
-						placeholder="Transcript will appear here…"
-						spellCheck
-						autoCorrect="on"
-						autoCapitalize="sentences"
+					<TranscriptPanel
+						transcriptDraft={transcriptDraft}
+						livePreviewTranscript={livePreviewTranscript}
+						onTranscriptChange={setTranscriptDraft}
+						textareaClassName="textarea transcript-area compact-transcript"
 					/>
-					{livePreviewTranscript ?
-						<div className="transcript-live-preview" aria-live="polite">
-							<p className="transcript-live-label">Live preview</p>
-							<p className="transcript-live-text">{livePreviewTranscript}</p>
-						</div>
-					: null}
 				</section>
 			:	<>
 					<section className="top-strip" aria-label="App status">
@@ -804,482 +734,79 @@ export function TranscriptionStudio() {
 					</section>
 
 					<section className="studio-layout">
-						<aside className="card studio-settings">
-							<div className="section-title">
-								<Settings2 size={16} />
-								<h2>Settings</h2>
-							</div>
-
-							<section className="settings-grid compact-grid">
-								<div>
-									<div className="label">Runtime</div>
-									<select
-										className="select"
-										value={settings.profileId}
-										onChange={(event: ChangeEvent<HTMLSelectElement>) =>
-											setSettings((prev: AppSettings) => ({
-												...prev,
-												profileId: event.target.value,
-											}))
-										}>
-										{profiles.map((profile: RuntimeProfile) => (
-											<option key={profile.id} value={profile.id}>
-												{profile.title}
-											</option>
-										))}
-									</select>
-								</div>
-
-								<div>
-									<div className="label">Model</div>
-									<select
-										className="select"
-										value={(settings.customModel ?? "").trim()}
-										onChange={(event: ChangeEvent<HTMLSelectElement>) =>
-											setSettings((prev: AppSettings) => ({
-												...prev,
-												customModel: event.target.value,
-											}))
-										}>
-										<option value="">
-											Default ({activeProfile?.model ?? "small"})
-										</option>
-										{MODEL_OPTIONS.map((model: string) => (
-											<option key={model} value={model}>
-												{model}
-											</option>
-										))}
-									</select>
-								</div>
-
-								<div>
-									<div className="label">Language</div>
-									<select
-										className="select"
-										value={settings.language}
-										onChange={(event: ChangeEvent<HTMLSelectElement>) =>
-											setSettings((prev: AppSettings) => ({
-												...prev,
-												language: event.target.value,
-											}))
-										}>
-										{LANGUAGES.map((language) => (
-											<option key={language.value} value={language.value}>
-												{language.label}
-											</option>
-										))}
-									</select>
-								</div>
-
-								<div>
-									<div className="label">Task</div>
-									<select
-										className="select"
-										value={settings.task}
-										onChange={(event: ChangeEvent<HTMLSelectElement>) =>
-											setSettings((prev: AppSettings) => ({
-												...prev,
-												task: event.target.value as AppSettings["task"],
-											}))
-										}>
-										<option value="transcribe">Transcribe</option>
-										<option value="translate">Translate</option>
-									</select>
-								</div>
-							</section>
-
-							<section className="stack compact-stack">
-								<label className="toggle-row">
-									<span className="toggle-title">Auto copy</span>
-									<input
-										type="checkbox"
-										checked={settings.autoCopy}
-										onChange={(event: ChangeEvent<HTMLInputElement>) =>
-											setSettings((prev: AppSettings) => ({
-												...prev,
-												autoCopy: event.target.checked,
-											}))
-										}
-									/>
-								</label>
-
-
-							</section>
-
-							<details className="advanced-block">
-								<summary>Advanced</summary>
-								<div className="slider-grid">
-									<div>
-										<div className="label">Beam</div>
-										<div className="range-head">
-											<span>Search</span>
-											<strong>{settings.beamSize}</strong>
-										</div>
-										<input
-											className="field"
-											type="range"
-											min={1}
-											max={10}
-											step={1}
-											value={settings.beamSize}
-											onChange={(event: ChangeEvent<HTMLInputElement>) =>
-												setSettings((prev: AppSettings) => ({
-													...prev,
-													beamSize: Number(event.target.value),
-												}))
-											}
-										/>
-									</div>
-
-									<div>
-										<div className="label">Temperature</div>
-										<div className="range-head">
-											<span>Creativity</span>
-											<strong>{settings.temperature.toFixed(2)}</strong>
-										</div>
-										<input
-											className="field"
-											type="range"
-											min={0}
-											max={1}
-											step={0.05}
-											value={settings.temperature}
-											onChange={(event: ChangeEvent<HTMLInputElement>) =>
-												setSettings((prev: AppSettings) => ({
-													...prev,
-													temperature: Number(event.target.value),
-												}))
-											}
-										/>
-									</div>
-
-									<div>
-										<div className="label">Engine path</div>
-										<input
-											className="field code"
-											value={settings.manualEnginePath ?? ""}
-											onChange={(event: ChangeEvent<HTMLInputElement>) =>
-												setSettings((prev: AppSettings) => ({
-													...prev,
-													manualEnginePath: event.target.value,
-												}))
-											}
-											placeholder="/opt/homebrew/bin/whisper-cli"
-										/>
-									</div>
-								</div>
-							</details>
-						</aside>
+						<SettingsPanel
+							profiles={profiles}
+							settings={settings}
+							activeProfileModel={activeProfile?.model}
+							modelOptions={MODEL_OPTIONS}
+							languages={LANGUAGES}
+							setSettings={setSettings}
+						/>
 
 						<section
-						className={
-							activeGeneralView === "history" ?
-								"card studio-workspace studio-workspace-history"
-							:	"card studio-workspace"
-						}>
-							{activeGeneralView === "activity" ?
-								<>
-									<div className="section-title section-title-space">
-										<div className="section-title-left">
-											<Mic size={16} />
-											<h2>Workspace</h2>
-										</div>
-										<span className="pill pill-soft">
-											{isRecording ? "Recording" : "Idle"}
-										</span>
-									</div>
-
-									<div
-										className="toolbar-icons"
-										role="toolbar"
-										aria-label="Transcription actions">
-										<button
-											className="icon-btn"
-											onClick={onPickAudio}
-											disabled={busy || isRecording}
-											title="Choose audio file"
-											aria-label="Choose audio file">
-											<FolderOpen size={18} />
-										</button>
-										<button
-											className={
-												isRecording ? "icon-btn icon-btn-danger" : "icon-btn"
-											}
-											onClick={onToggleMicRecording}
-											disabled={busy}
-											title={isRecording ? "Stop recording" : "Record microphone"}
-											aria-label={
-												isRecording ? "Stop recording" : "Record microphone"
-											}>
-											<Mic size={18} />
-										</button>
-										<button
-											className="icon-btn icon-btn-primary"
-											onClick={onTranscribe}
-											disabled={busy || isRecording || !audioPath}
-											title={
-												isTranscribing ? "Transcribing file" : "Transcribe selected file"
-											}
-											aria-label="Transcribe selected file">
-											<Sparkles size={18} />
-										</button>
-										<button
-											className="icon-btn"
-											onClick={onCopy}
-											disabled={!transcriptDraft.trim()}
-											title="Copy transcript"
-											aria-label="Copy transcript">
-											<Copy size={18} />
-										</button>
-										<button
-											className="icon-btn"
-											onClick={clearTranscriptView}
-											disabled={!transcriptDraft.trim() && !livePreviewTranscript}
-											title="Clear transcript"
-											aria-label="Clear transcript">
-											<Trash2 size={18} />
-										</button>
-									</div>
-
-									<p className="toolbar-hint">Hover icons to view actions.</p>
-
-									<div className="source-grid">
-										<article className="source-card">
-											<p className="label">File</p>
-											<p className="source-title">{selectedAudioLabel}</p>
-										</article>
-										<article className="source-card">
-											<p className="label">Mic</p>
-											<p className="source-title">
-												{micBlob ? `${(micBlob.size / 1024).toFixed(1)} KB` : "No recording"}
-											</p>
-										</article>
-									</div>
-
-									{isBootstrapping ?
-										<div
-											className="runtime-progress"
-											aria-live="polite"
-											aria-label="Runtime bootstrap progress">
-											<div className="runtime-progress-head">
-												<span>Runtime preparation</span>
-												<span>{runtimeBootstrapPercent}%</span>
-											</div>
-											<div className="runtime-progress-track">
-												<div
-													className="runtime-progress-fill"
-													style={{ width: `${runtimeBootstrapPercent}%` }}
-												/>
-											</div>
-											<div className="helper">{runtimeBootstrapMessage}</div>
-										</div>
-									: null}
-
-									<div className="status status-modern">{status}</div>
-
-									<section className="transcript-shell">
-										<div className="transcript-head">
-											<p className="helper">
-												{transcriptWordCount}w · {transcriptCharacterCount}c
-												{result?.languageDetected ? ` · ${result.languageDetected}` : ""}
-											</p>
-											<span className="pill pill-soft">{result?.modelUsed ?? "—"}</span>
-										</div>
-
-									<textarea
-										className="textarea transcript-area"
-										value={transcriptDraft}
-										onChange={(event: ChangeEvent<HTMLTextAreaElement>) =>
-											setTranscriptDraft(event.target.value)
-										}
-										placeholder="Transcript will appear here…"
-										spellCheck
-										autoCorrect="on"
-										autoCapitalize="sentences"
-									/>
-									{livePreviewTranscript ?
-										<div className="transcript-live-preview" aria-live="polite">
-											<p className="transcript-live-label">Live preview</p>
-											<p className="transcript-live-text">{livePreviewTranscript}</p>
-										</div>
-									: null}
-									</section>
-
-								</>
-							: 	<>
-									<div className="section-title section-title-space">
-										<div className="section-title-left">
-											<FolderOpen size={16} />
-											<h2>Recording History</h2>
-										</div>
-										<div className="history-header-actions">
-											<button
-												className="btn compact-toggle-btn"
-												onClick={() => void loadRecordingHistory({ statusMessage: "Recording history refreshed." })}
-												disabled={isLoadingRecordingHistory || deletingRecordingPath !== null}>
-												Refresh
-											</button>
-										</div>
-									</div>
-
-									<div className="history-bulk-bar">
-										<button
-											className="btn compact-toggle-btn"
-											onClick={onToggleSelectAllRecordings}
-											disabled={!recordingHistory.length || isDeletingSelectedRecordings}>
-											{allHistorySelected ? "Unselect all" : "Select all"}
-										</button>
-										<button
-											className="btn btn-danger compact-toggle-btn"
-											onClick={() => void onDeleteSelectedRecordings()}
-											disabled={
-												!hasSelectedRecordings ||
-												isDeletingSelectedRecordings ||
-												deletingRecordingPath !== null
-											}>
-											{isDeletingSelectedRecordings ? "Deleting…" : "Delete selected"}
-										</button>
-										<button
-											className="btn btn-danger compact-toggle-btn"
-											onClick={() => void onDeleteAllRecordings()}
-											disabled={
-												!recordingHistory.length ||
-												isDeletingSelectedRecordings ||
-												deletingRecordingPath !== null
-											}>
-											Delete all
-										</button>
-										<span className="history-selection-count">
-											{hasSelectedRecordings ? `${selectedRecordingPaths.length} selected` : "No selection"}
-										</span>
-									</div>
-
-									{activePlaybackItem ?
-										<div className="history-player" aria-live="polite">
-											<div className="history-player-main">
-												<p className="history-player-title" title={activePlaybackItem.fileName}>
-													Now playing: {activePlaybackItem.fileName}
-												</p>
-												<div className="history-player-controls">
-													<button
-														className="btn compact-toggle-btn"
-														onClick={() => onStepPlayback(-5)}
-														disabled={!playbackReady || isDeletingSelectedRecordings || deletingRecordingPath !== null}>
-														-5s
-													</button>
-													<button
-														className="btn compact-toggle-btn"
-														onClick={() => void onToggleActivePlayback()}
-														disabled={isDeletingSelectedRecordings || deletingRecordingPath !== null}>
-														{isPlaybackPlaying ? (
-															<>
-																<Pause size={14} /> Pause
-															</>
-														) : (
-															<>
-																<Play size={14} /> Play
-															</>
-														)}
-													</button>
-													<button
-														className="btn compact-toggle-btn"
-														onClick={() => onStepPlayback(5)}
-														disabled={!playbackReady || isDeletingSelectedRecordings || deletingRecordingPath !== null}>
-														+5s
-													</button>
-													<div className="history-rate-group" role="group" aria-label="Playback speed">
-														{[1, 1.5, 2].map((rate) => (
-															<button
-																key={rate}
-																className={
-																	playbackRate === rate
-																		? "btn compact-toggle-btn history-rate-btn history-rate-btn-active"
-																		: "btn compact-toggle-btn history-rate-btn"
-																}
-																onClick={() => onSetPlaybackRate(rate)}
-																disabled={isDeletingSelectedRecordings || deletingRecordingPath !== null}>
-																{rate}x
-															</button>
-														))}
-													</div>
-												</div>
-											</div>
-											<div className="history-player-timeline">
-												<span className="history-time">{formatPlaybackTime(playbackCurrentSec)}</span>
-												<input
-													type="range"
-													min={0}
-													max={playbackDurationSec > 0 ? playbackDurationSec : 0}
-													step={0.1}
-													value={Math.min(playbackCurrentSec, playbackDurationSec || 0)}
-													onChange={onSeekPlayback}
-													disabled={!playbackReady || playbackDurationSec <= 0 || isDeletingSelectedRecordings || deletingRecordingPath !== null}
-												/>
-												<span className="history-time">{formatPlaybackTime(playbackDurationSec)}</span>
-											</div>
-										</div>
-									: null}
-
-									{isLoadingRecordingHistory ?
-										<div className="history-empty">Fetching recordings…</div>
-									: recordingHistory.length === 0 ?
-										<div className="history-empty">No microphone recordings found yet.</div>
-									: <div className="history-list" role="list" aria-label="Microphone recording history">
-											{recordingHistory.map((item: RecordingHistoryItem) => {
-												const deleting = deletingRecordingPath === item.absolutePath;
-												const selected = selectedRecordingPaths.includes(item.absolutePath);
-												const playing = playingRecordingPath === item.absolutePath;
-
-												return (
-													<article className="history-item" key={item.id} role="listitem">
-														<label className="history-select-wrap" title={selected ? "Unselect recording" : "Select recording"}>
-															<input
-																type="checkbox"
-																checked={selected}
-																onChange={() => onToggleSelectRecording(item.absolutePath)}
-																disabled={isDeletingSelectedRecordings || deletingRecordingPath !== null}
-															/>
-														</label>
-
-														<div className="history-item-main">
-															<p className="history-file-name" title={item.fileName}>
-																{item.fileName}
-															</p>
-															<p className="history-meta">
-																{formatRecordingSize(item.sizeBytes)} · {item.extension.toUpperCase()} · {formatRecordingDate(item.createdAtIso)}
-															</p>
-														</div>
-
-														<div className="history-item-actions">
-															<button
-																className="icon-btn history-play-btn"
-																onClick={() => void onPlayRecording(item)}
-																disabled={isDeletingSelectedRecordings || deletingRecordingPath !== null}
-																title={playing && isPlaybackPlaying ? "Pause playback" : "Play recording"}
-																aria-label={playing && isPlaybackPlaying ? "Pause playback" : "Play recording"}>
-																{playing && isPlaybackPlaying ? <Pause size={15} /> : <Play size={15} />}
-															</button>
-									<button
-										className="btn compact-toggle-btn"
-										onClick={() => onUseRecordingForTranscription(item)}
-										disabled={isDeletingSelectedRecordings || deletingRecordingPath !== null}
-										title="Use this recording as the selected transcription file">
-										Use
-									</button>
-									<button
-										className="btn btn-danger history-delete-btn"
-										onClick={() => void onDeleteRecording(item.absolutePath)}
-										disabled={deleting || deletingRecordingPath !== null || isDeletingSelectedRecordings}>
-										{deleting ? "Deleting…" : "Delete"}
-									</button>
-														</div>
-													</article>
-												);
-											})}
-										</div>
-									}
-								</>
+							className={
+								activeGeneralView === "history"
+									? "card studio-workspace studio-workspace-history"
+									: "card studio-workspace"
 							}
+						>
+							{activeGeneralView === "activity" ? (
+								<WorkspaceActivityView
+									isRecording={isRecording}
+									busy={busy}
+									isTranscribing={isTranscribing}
+									audioPath={audioPath}
+									transcriptDraft={transcriptDraft}
+									livePreviewTranscript={livePreviewTranscript}
+									selectedAudioLabel={selectedAudioLabel}
+									micBlob={micBlob}
+									isBootstrapping={isBootstrapping}
+									runtimeBootstrapPercent={runtimeBootstrapPercent}
+									runtimeBootstrapMessage={runtimeBootstrapMessage}
+									status={status}
+									transcriptWordCount={transcriptWordCount}
+									transcriptCharacterCount={transcriptCharacterCount}
+									result={result}
+									setTranscriptDraft={setTranscriptDraft}
+									onPickAudio={onPickAudio}
+									onToggleMicRecording={onToggleMicRecording}
+									onTranscribe={onTranscribe}
+									onCopy={onCopy}
+									onClearTranscript={clearTranscriptView}
+								/>
+							) : (
+								<RecordingHistoryView
+									isLoadingRecordingHistory={isLoadingRecordingHistory}
+									deletingRecordingPath={deletingRecordingPath}
+									isDeletingSelectedRecordings={isDeletingSelectedRecordings}
+									recordingHistory={recordingHistory}
+									selectedRecordingPaths={selectedRecordingPaths}
+									allHistorySelected={allHistorySelected}
+									hasSelectedRecordings={hasSelectedRecordings}
+									activePlaybackItem={activePlaybackItem}
+									playbackReady={playbackReady}
+									isPlaybackPlaying={isPlaybackPlaying}
+									playbackRate={playbackRate}
+									playbackCurrentSec={playbackCurrentSec}
+									playbackDurationSec={playbackDurationSec}
+									playingRecordingPath={playingRecordingPath}
+									formatRecordingSize={formatRecordingSize}
+									formatRecordingDate={formatRecordingDate}
+									formatPlaybackTime={formatPlaybackTime}
+									loadRecordingHistory={loadRecordingHistory}
+									onToggleSelectAllRecordings={onToggleSelectAllRecordings}
+									onDeleteSelectedRecordings={onDeleteSelectedRecordings}
+									onDeleteAllRecordings={onDeleteAllRecordings}
+									onStepPlayback={onStepPlayback}
+									onToggleActivePlayback={onToggleActivePlayback}
+									onSetPlaybackRate={onSetPlaybackRate}
+									onSeekPlayback={onSeekPlayback}
+									onPlayRecording={onPlayRecording}
+									onUseRecordingForTranscription={onUseRecordingForTranscription}
+									onDeleteRecording={onDeleteRecording}
+									onToggleSelectRecording={onToggleSelectRecording}
+								/>
+							)}
 						</section>
 					</section>
 				</>
