@@ -43,21 +43,37 @@ jobs:
         run: |
           PREVIOUS_VERSION=$(node -e "
             const { execSync } = require('child_process');
-            const beforeSha = process.env.BEFORE_SHA || '';
+            const beforeSha = (process.env.BEFORE_SHA || '').trim();
             const zeroSha = /^0+$/;
 
-            if (!beforeSha || zeroSha.test(beforeSha)) {
-              process.stdout.write('');
-              process.exit(0);
+            const readVersionAt = (ref) => {
+              if (!ref) return '';
+              try {
+                const raw = execSync(`git show ${ref}:package.json`, { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] });
+                const json = JSON.parse(raw);
+                return (json.version || '').toString().trim();
+              } catch {
+                return '';
+              }
+            };
+
+            // Primary source: push event "before" SHA
+            let previousVersion = '';
+            if (beforeSha && !zeroSha.test(beforeSha)) {
+              previousVersion = readVersionAt(beforeSha);
             }
 
-            try {
-              const raw = execSync(`git show ${beforeSha}:package.json`, { encoding: 'utf8' });
-              const json = JSON.parse(raw);
-              process.stdout.write(json.version || '');
-            } catch {
-              process.stdout.write('');
+            // Fallback 1: previous commit from current HEAD
+            if (!previousVersion) {
+              try {
+                const parentSha = execSync('git rev-parse HEAD^', { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }).trim();
+                previousVersion = readVersionAt(parentSha);
+              } catch {
+                // noop
+              }
             }
+
+            process.stdout.write(previousVersion);
           ")
 
           echo "version=$PREVIOUS_VERSION" >> "$GITHUB_OUTPUT"
@@ -71,7 +87,9 @@ jobs:
           CURRENT_VERSION: ${{ steps.current.outputs.version }}
           PREVIOUS_VERSION: ${{ steps.previous.outputs.version }}
         run: |
-          if [ -n "$PREVIOUS_VERSION" ] && [ "$CURRENT_VERSION" != "$PREVIOUS_VERSION" ]; then
+          if [ -z "$PREVIOUS_VERSION" ]; then
+            echo "changed=true" >> "$GITHUB_OUTPUT"
+          elif [ "$CURRENT_VERSION" != "$PREVIOUS_VERSION" ]; then
             echo "changed=true" >> "$GITHUB_OUTPUT"
           else
             echo "changed=false" >> "$GITHUB_OUTPUT"
