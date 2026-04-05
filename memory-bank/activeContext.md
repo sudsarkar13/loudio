@@ -1,45 +1,40 @@
 # Active Context — Loudio
 
 ## Current focus
-Close the compact-mode window-management reliability gap on macOS (Cmd+M / Window → Minimize), while preserving the newly completed transcript-editing and append UX.
+Finalize runtime QA for compact-mode minimizing behavior on macOS (Cmd+M and Window → Minimize), while preserving the completed transcript-editing + append workflow and keeping release build stability.
 
 ## Recently completed work
-- Completed transcript UX refactor in `app/components/TranscriptionStudio.tsx`:
-  - transcript display is now editable via textarea (`transcriptDraft`).
-  - introduced separate live partial state (`livePreviewTranscript`).
-  - finalized transcription appends into existing draft using `appendTranscriptText(...)`.
-  - append separator updated to one blank line (`\n\n`) between blocks.
-  - auto-copy now copies the merged full transcript draft.
-  - clear/copy actions now operate on editable draft.
-- Added live preview styling in `app/styles/globals.css` (`.transcript-live-preview`, label/text classes).
-- Updated desktop menu integration in `app/lib/tauri.ts`:
-  - added Window menu compact-mode check item (`window_toggle_compact_mode`).
-  - replaced inline minimize action with shared `minimizeDesktopAppWindow()` helper.
-- Hardened compact/general window transitions in `app/lib/tauri.ts`:
-  - `setMinimizable(true)` now applied entering compact mode and restoring general mode.
-- Updated Tauri capability permissions in `src-tauri/capabilities/default.json`:
-  - added `core:window:allow-minimize`
-  - added `core:window:allow-set-minimizable`
-- Build validation completed successfully:
+- Transcript UX refactor is in place across the studio flow:
+  - editable transcript source-of-truth via `transcriptDraft`
+  - separate temporary partial state via `livePreviewTranscript`
+  - finalized segment merging through `appendTranscriptText(...)` with `\n\n` separation
+  - auto-copy behavior now copies merged full transcript draft
+- Desktop window/menu integration updates are implemented in `app/lib/tauri.ts`:
+  - Window menu compact mode check item (`window_toggle_compact_mode`)
+  - minimize action routed through shared helper (`minimizeDesktopAppWindow()`)
+  - compact/general transitions enforce `setMinimizable(true)`
+- Capability permissions were added in `src-tauri/capabilities/default.json`:
+  - `core:window:allow-minimize`
+  - `core:window:allow-set-minimizable`
+- Build validation already succeeded in prior pass:
   - `yarn build`
-  - `yarn tauri:build` (generated app + dmg bundles)
+  - `yarn tauri:build`
 
 ## Validation status
-- TypeScript/build pipelines are green for the updated code path.
-- Capability-related runtime error for minimize permission was addressed by permission updates.
-- Final interactive runtime confirmation is still pending for:
-  - Cmd+M minimizing in compact mode
-  - Window → Minimize in compact mode
-  - correct restore-from-Dock behavior and compact toggle state continuity
+- Repository currently appears clean and on `main` tracking `origin/main`.
+- Pattern checks confirm the expected symbols and code paths exist (`minimizeDesktopAppWindow`, `setMinimizable(true)`, compact menu item, live preview and append utilities).
+- Lint command issue is confirmed in current environment:
+  - `yarn lint` returns: `Invalid project directory provided, no such directory: .../loudio/lint`
+- Remaining gap is interactive runtime confirmation of compact-mode minimize/restore behavior.
 
 ## Immediate next checks
-1. Launch app in Tauri runtime and enter compact mode.
-2. Verify `Cmd+M` minimizes the compact window.
-3. Verify Window menu `Minimize` also works in compact mode.
-4. Restore app from Dock and confirm:
-   - transcript state is intact
+1. Launch app in Tauri runtime and switch to compact mode.
+2. Verify `Cmd+M` minimizes window in compact mode.
+3. Verify Window → Minimize also works in compact mode.
+4. Restore from Dock and verify:
+   - transcript state is preserved
    - compact/general toggle state remains coherent
-5. If minimize still fails, implement Rust-command fallback for minimize invocation and re-test.
+5. If minimize still fails in runtime, implement Rust-command fallback for minimize and retest.
 
-## Current caveat
-- `next lint` via existing script (`next lint`) currently resolves incorrectly in this environment (`Invalid project directory .../loudio/lint`), indicating a lint-script/tooling mismatch that should be corrected separately.
+## Current caveats
+- Lint script/tooling mismatch remains unresolved and should be corrected separately from compact-mode runtime QA.
