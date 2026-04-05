@@ -44,7 +44,6 @@ struct AppSettings {
     language: String,
     task: String,
     auto_copy: bool,
-    timestamps: bool,
     temperature: f32,
     beam_size: u8,
     manual_engine_path: Option<String>,

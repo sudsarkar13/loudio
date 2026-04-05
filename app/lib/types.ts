@@ -13,7 +13,6 @@ export interface AppSettings {
   language: string;
   task: "transcribe" | "translate";
   autoCopy: boolean;
-  timestamps: boolean;
   temperature: number;
   beamSize: number;
   manualEnginePath?: string;

@@ -1136,22 +1136,15 @@ export function TranscriptionStudio() {
 					autoCopy: !prev.autoCopy,
 				}));
 			},
-			toggleTimestamps: () => {
-				setSettings((prev: AppSettings) => ({
-					...prev,
-					timestamps: !prev.timestamps,
-				}));
-			},
 			bootstrapRuntime: async () => {
 				setStatus("Running runtime bootstrap…");
 				const message = await runRuntimeBootstrap();
 				setStatus(message);
 			},
 			isAutoCopyEnabled: settings.autoCopy,
-			areTimestampsEnabled: settings.timestamps,
 			isCompactModeEnabled: isCompactMode,
 		});
-	}, [settings.autoCopy, settings.timestamps, isCompactMode]);
+	}, [settings.autoCopy, isCompactMode]);
 
 	return (
 		<main
@@ -1428,19 +1421,7 @@ export function TranscriptionStudio() {
 									/>
 								</label>
 
-								<label className="toggle-row">
-									<span className="toggle-title">Timestamps</span>
-									<input
-										type="checkbox"
-										checked={settings.timestamps}
-										onChange={(event: ChangeEvent<HTMLInputElement>) =>
-											setSettings((prev: AppSettings) => ({
-												...prev,
-												timestamps: event.target.checked,
-											}))
-										}
-									/>
-								</label>
+
 							</section>
 
 							<details className="advanced-block">

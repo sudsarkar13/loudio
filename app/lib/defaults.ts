@@ -35,7 +35,6 @@ export const DEFAULT_SETTINGS: AppSettings = {
   language: "auto",
   task: "transcribe",
   autoCopy: true,
-  timestamps: false,
   temperature: 0,
   beamSize: 5,
   manualEnginePath: ""
