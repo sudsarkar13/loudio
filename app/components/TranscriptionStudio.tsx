@@ -374,6 +374,7 @@ export function TranscriptionStudio() {
 		);
 	}, [isCompactMode]);
 
+
 	useEffect(() => {
 		if (typeof document === "undefined") return;
 
@@ -1058,6 +1059,7 @@ export function TranscriptionStudio() {
 		setStatus("Transcript copied to clipboard.");
 	}
 
+
 	async function onToggleCompactMode() {
 		const nextMode = !isCompactMode;
 
@@ -1272,6 +1274,9 @@ export function TranscriptionStudio() {
 							setTranscriptDraft(event.target.value)
 						}
 						placeholder="Transcript will appear here…"
+						spellCheck
+						autoCorrect="on"
+						autoCapitalize="sentences"
 					/>
 					{livePreviewTranscript ?
 						<div className="transcript-live-preview" aria-live="polite">
@@ -1611,6 +1616,9 @@ export function TranscriptionStudio() {
 											setTranscriptDraft(event.target.value)
 										}
 										placeholder="Transcript will appear here…"
+										spellCheck
+										autoCorrect="on"
+										autoCapitalize="sentences"
 									/>
 									{livePreviewTranscript ?
 										<div className="transcript-live-preview" aria-live="polite">
@@ -1619,6 +1627,7 @@ export function TranscriptionStudio() {
 										</div>
 									: null}
 									</section>
+
 								</>
 							: 	<>
 									<div className="section-title section-title-space">
