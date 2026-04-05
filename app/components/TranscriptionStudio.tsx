@@ -10,7 +10,6 @@ import {
 import {
 	chooseAudioFile,
 	closeDesktopApp,
-	copyToClipboard,
 	enterCompactWindowMode,
 	exitCompactWindowMode,
 	getPersistedSettings,
@@ -20,7 +19,6 @@ import {
 	persistCompactWindowPosition,
 	runRuntimeBootstrap,
 	savePersistedSettings,
-	setupDesktopAppMenu,
 	startCompactWindowDrag,
 	type CompactWindowAnchor,
 } from "@/app/lib/tauri";
@@ -35,16 +33,12 @@ import {
 	EULA_STORAGE_KEY,
 	MODEL_OPTIONS,
 } from "@/app/components/transcription-studio/constants";
-import {
-	encodeWav,
-	formatPlaybackTime,
-	formatRecordingDate,
-	formatRecordingSize,
-	mergeSettings,
-	resolvePreferredMicMimeType,
-} from "@/app/components/transcription-studio/utils";
-import { useTranscriptionController } from "@/app/components/transcription-studio/useTranscriptionController";
-import { useRecordingHistoryController } from "@/app/components/transcription-studio/useRecordingHistoryController";
+import { resolvePreferredMicMimeType, encodeWav } from "@/app/components/transcription-studio/utils/audio";
+import { formatPlaybackTime, formatRecordingDate, formatRecordingSize } from "@/app/components/transcription-studio/utils/format";
+import { mergeSettings } from "@/app/components/transcription-studio/utils/settings";
+import { useTranscriptWorkflow } from "@/app/components/transcription-studio/hooks/useTranscriptWorkflow";
+import { useRecordingHistory } from "@/app/components/transcription-studio/hooks/useRecordingHistory";
+import { useDesktopMenuBindings } from "@/app/components/transcription-studio/hooks/useDesktopMenuBindings";
 import { CompactToolbar } from "@/app/components/transcription-studio/components/CompactToolbar";
 import { EulaGate } from "@/app/components/transcription-studio/components/EulaGate";
 import { RecordingHistoryView } from "@/app/components/transcription-studio/components/RecordingHistoryView";
@@ -74,7 +68,7 @@ export function TranscriptionStudio() {
 		onCopy: copyTranscriptDraft,
 		transcriptWordCount,
 		transcriptCharacterCount,
-	} = useTranscriptionController();
+	} = useTranscriptWorkflow();
 	const [runtimeBootstrapPercent, setRuntimeBootstrapPercent] =
 		useState<number>(0);
 	const [runtimeBootstrapMessage, setRuntimeBootstrapMessage] =
@@ -116,7 +110,20 @@ export function TranscriptionStudio() {
 		onStepPlayback,
 		onSetPlaybackRate,
 		onToggleActivePlayback,
-	} = useRecordingHistoryController({ setStatus });
+	} = useRecordingHistory({ setStatus });
+
+	useDesktopMenuBindings({
+		onPickAudio,
+		onTranscribe,
+		onToggleMicRecording,
+		onToggleCompactMode,
+		clearTranscriptView,
+		transcriptDraftRef,
+		setStatus,
+		setSettings,
+		settings,
+		isCompactMode,
+	});
 
 	const mediaRecorderRef = useRef<MediaRecorder | null>(null);
 	const mediaStreamRef = useRef<MediaStream | null>(null);
@@ -588,37 +595,7 @@ export function TranscriptionStudio() {
 		void loadRecordingHistory();
 	}, [activeGeneralView, hasAcceptedEula, isCheckingEula, isCompactMode]);
 
-	useEffect(() => {
-		void setupDesktopAppMenu({
-			openAudioFile: onPickAudio,
-			transcribeFile: onTranscribe,
-			toggleMicRecording: onToggleMicRecording,
-			toggleCompactMode: onToggleCompactMode,
-			copyTranscript: async () => {
-				if (!transcriptDraftRef.current.trim()) {
-					setStatus("No transcript available to copy yet.");
-					return;
-				}
 
-				await copyToClipboard(transcriptDraftRef.current);
-				setStatus("Transcript copied to clipboard.");
-			},
-			clearTranscript: clearTranscriptView,
-			toggleAutoCopy: () => {
-				setSettings((prev: AppSettings) => ({
-					...prev,
-					autoCopy: !prev.autoCopy,
-				}));
-			},
-			bootstrapRuntime: async () => {
-				setStatus("Running runtime bootstrap…");
-				const message = await runRuntimeBootstrap();
-				setStatus(message);
-			},
-			isAutoCopyEnabled: settings.autoCopy,
-			isCompactModeEnabled: isCompactMode,
-		});
-	}, [settings.autoCopy, isCompactMode]);
 
 	return (
 		<main
