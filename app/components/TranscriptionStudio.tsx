@@ -43,7 +43,6 @@ import { CompactToolbar } from "@/app/components/transcription-studio/components
 import { EulaGate } from "@/app/components/transcription-studio/components/EulaGate";
 import { RecordingHistoryView } from "@/app/components/transcription-studio/components/RecordingHistoryView";
 import { SettingsPanel } from "@/app/components/transcription-studio/components/SettingsPanel";
-import { TranscriptPanel } from "@/app/components/transcription-studio/components/TranscriptPanel";
 import { WorkspaceActivityView } from "@/app/components/transcription-studio/components/WorkspaceActivityView";
 
 export function TranscriptionStudio() {
@@ -662,12 +661,21 @@ export function TranscriptionStudio() {
 
 					<div className="status status-modern compact-status">{status}</div>
 
-					<TranscriptPanel
-						transcriptDraft={transcriptDraft}
-						livePreviewTranscript={livePreviewTranscript}
-						onTranscriptChange={setTranscriptDraft}
-						textareaClassName="textarea transcript-area compact-transcript"
+					<textarea
+						className="textarea transcript-area compact-transcript"
+						value={transcriptDraft}
+						onChange={(event) => setTranscriptDraft(event.target.value)}
+						placeholder="Transcript will appear here…"
+						spellCheck
+						autoCorrect="on"
+						autoCapitalize="sentences"
 					/>
+					{livePreviewTranscript ? (
+						<div className="transcript-live-preview" aria-live="polite">
+							<p className="transcript-live-label">Live preview</p>
+							<p className="transcript-live-text">{livePreviewTranscript}</p>
+						</div>
+					) : null}
 				</section>
 			:	<>
 					<section className="top-strip" aria-label="App status">
