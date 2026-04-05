@@ -49,10 +49,8 @@ export interface DesktopMenuActions {
   copyTranscript: () => Promise<void>;
   clearTranscript: () => void;
   toggleAutoCopy: () => void;
-  toggleTimestamps: () => void;
   bootstrapRuntime: () => Promise<void>;
   isAutoCopyEnabled: boolean;
-  areTimestampsEnabled: boolean;
   isCompactModeEnabled: boolean;
 }
 
@@ -259,14 +257,6 @@ export async function setupDesktopAppMenu(actions: DesktopMenuActions): Promise<
     }
   });
 
-  const timestampsMenuItem = await CheckMenuItem.new({
-    id: "view_toggle_timestamps",
-    text: "Include Timestamps",
-    checked: actions.areTimestampsEnabled,
-    action: () => {
-      actions.toggleTimestamps();
-    }
-  });
 
   const compactModeMenuItem = await CheckMenuItem.new({
     id: "window_toggle_compact_mode",
@@ -350,7 +340,6 @@ export async function setupDesktopAppMenu(actions: DesktopMenuActions): Promise<
     text: "View",
     items: [
       autoCopyMenuItem,
-      timestampsMenuItem,
       { item: "Separator" },
       {
         id: "view_reload",
