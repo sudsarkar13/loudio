@@ -9,7 +9,7 @@ import type { AppSettings, TranscriptionResponse } from "@/app/lib/types";
 import {
   appendTranscriptText,
   normalizeTranscriptText,
-} from "@/app/components/transcription-studio/utils";
+} from "@/app/components/transcription-studio/utils/transcript";
 
 interface UseTranscriptionControllerReturn {
   result: TranscriptionResponse | null;
