@@ -23,7 +23,7 @@
 4. **Unified transcription entry path for file + mic history**
    - Fresh mic recordings may auto-transcribe immediately through microphone command path.
    - Persisted mic recordings in History can be promoted into `audioPath` via `Use`.
-   - Once promoted, retranscription runs through the same `onTranscribe` / `transcribe_audio` file flow as uploaded files.
+   - Once promoted, retranscription runs through the same file transcription path.
 
 5. **Auto-copy semantics bound to merged output**
    - Auto-copy executes after finalized result merge.
@@ -31,7 +31,7 @@
 
 6. **Desktop menu composition + compact-mode controls**
    - Menu built via Tauri API with File/Edit/View/Window/Help.
-   - Window submenu includes compact-mode check item bound to current state.
+   - Window submenu includes compact-mode check item bound to current state (`window_toggle_compact_mode`).
    - Minimize action routes through explicit helper (`minimizeDesktopAppWindow`) for consistency.
 
 7. **Capability-gated window operations**
@@ -39,6 +39,10 @@
    - Compact-mode minimize hardening depends on:
      - `core:window:allow-minimize`
      - `core:window:allow-set-minimizable`
+
+8. **Validation pattern split: compile/build vs runtime UX checks**
+   - Static confidence is established through build/type/Rust checks and symbol-level verification.
+   - Desktop window-behavior confidence still requires interactive runtime QA, especially for macOS compact-mode minimize/restore behavior.
 
 ## Current design tension
 Cross-platform declarative window styling and compact-shell UX are stable at build-time, but macOS runtime behavior around minimize/titlebar affordances can diverge. The prevailing mitigation is explicit capability + explicit window API sequencing, with a Rust-side fallback if JS-side control remains insufficient.
