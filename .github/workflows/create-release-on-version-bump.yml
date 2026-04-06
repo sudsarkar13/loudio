@@ -19,6 +19,7 @@ jobs:
     name: Prepare release context
     runs-on: ubuntu-latest
     outputs:
+      version: ${{ steps.current.outputs.version }}
       tag: ${{ steps.current.outputs.tag }}
       version_changed: ${{ steps.bump.outputs.changed }}
       release_exists: ${{ steps.release_check.outputs.exists }}
@@ -40,10 +41,12 @@ jobs:
         id: previous
         env:
           BEFORE_SHA: ${{ github.event.before }}
+          CURRENT_VERSION: ${{ steps.current.outputs.version }}
         run: |
           PREVIOUS_VERSION=$(node -e "
             const { execSync } = require('child_process');
             const beforeSha = (process.env.BEFORE_SHA || '').trim();
+            const currentVersion = (process.env.CURRENT_VERSION || '').trim();
             const zeroSha = /^0+$/;
 
             const readVersionAt = (ref) => {
@@ -73,6 +76,23 @@ jobs:
               }
             }
 
+            // Fallback 2: latest existing release tag (excluding current version)
+            if (!previousVersion) {
+              try {
+                const tags = execSync('git tag --list "v*" --sort=-v:refname', { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] })
+                  .split('\n')
+                  .map((t) => t.trim())
+                  .filter(Boolean);
+
+                const previousTag = tags.find((t) => t !== `v${currentVersion}`);
+                if (previousTag) {
+                  previousVersion = previousTag.replace(/^v/, '');
+                }
+              } catch {
+                // noop
+              }
+            }
+
             process.stdout.write(previousVersion);
           ")
 
@@ -80,6 +100,45 @@ jobs:
           if [ -n "$PREVIOUS_VERSION" ]; then
             echo "tag=v$PREVIOUS_VERSION" >> "$GITHUB_OUTPUT"
           fi
+
+      - name: Validate version alignment across package.json and Tauri config
+        id: version_guard
+        run: |
+          node <<'NODE'
+          const fs = require('fs');
+
+          const packageJson = JSON.parse(fs.readFileSync('package.json', 'utf8'));
+          const tauriConfig = JSON.parse(fs.readFileSync('src-tauri/tauri.conf.json', 'utf8'));
+          const cargoToml = fs.readFileSync('src-tauri/Cargo.toml', 'utf8');
+
+          const packageVersion = (packageJson.version || '').toString().trim();
+          const tauriVersion = (tauriConfig.version || '').toString().trim();
+          const cargoMatch = cargoToml.match(/^version\s*=\s*"([^"]+)"\s*$/m);
+          const cargoVersion = (cargoMatch?.[1] || '').trim();
+
+          const mismatches = [];
+          if (!packageVersion) mismatches.push('package.json version is missing');
+          if (!tauriVersion) mismatches.push('src-tauri/tauri.conf.json version is missing');
+          if (!cargoVersion) mismatches.push('src-tauri/Cargo.toml package.version is missing');
+
+          if (packageVersion && tauriVersion && packageVersion !== tauriVersion) {
+            mismatches.push(`package.json (${packageVersion}) != tauri.conf.json (${tauriVersion})`);
+          }
+
+          if (packageVersion && cargoVersion && packageVersion !== cargoVersion) {
+            mismatches.push(`package.json (${packageVersion}) != Cargo.toml (${cargoVersion})`);
+          }
+
+          if (mismatches.length > 0) {
+            console.error('Version alignment check failed:');
+            for (const mismatch of mismatches) {
+              console.error(`- ${mismatch}`);
+            }
+            process.exit(1);
+          }
+
+          console.log(`All version sources aligned at ${packageVersion}`);
+          NODE
 
       - name: Check whether version was bumped
         id: bump
@@ -145,6 +204,7 @@ jobs:
         env:
           CURRENT_TAG: ${{ steps.current.outputs.tag }}
           PREVIOUS_TAG: ${{ steps.previous.outputs.tag }}
+          PREVIOUS_VERSION: ${{ steps.previous.outputs.version }}
           BEFORE_SHA: ${{ github.event.before }}
           CURRENT_SHA: ${{ github.sha }}
         run: |
@@ -176,6 +236,8 @@ jobs:
             echo "### Upgrade context"
             if [ -n "$PREVIOUS_TAG" ]; then
               echo "- Previous version: $PREVIOUS_TAG"
+            elif [ -n "$PREVIOUS_VERSION" ]; then
+              echo "- Previous version: v$PREVIOUS_VERSION"
             else
               echo "- Previous version: not detected"
             fi
@@ -246,6 +308,25 @@ jobs:
       - name: Build Ubuntu .deb bundle
         run: yarn tauri build --bundles deb
 
+      - name: Verify .deb filename version
+        env:
+          EXPECTED_VERSION: ${{ needs.prepare-release.outputs.version }}
+        run: |
+          mapfile -t FILES < <(ls src-tauri/target/release/bundle/deb/*.deb)
+          if [ "${#FILES[@]}" -eq 0 ]; then
+            echo "No .deb files generated"
+            exit 1
+          fi
+
+          for file in "${FILES[@]}"; do
+            base=$(basename "$file")
+            echo "Generated .deb artifact: $base"
+            if [[ "$base" != *"_${EXPECTED_VERSION}_"* ]]; then
+              echo "Version mismatch: expected filename to contain _${EXPECTED_VERSION}_, got $base"
+              exit 1
+            fi
+          done
+
       - name: Upload .deb artifact (workflow)
         uses: actions/upload-artifact@v4
         with:
@@ -294,6 +375,25 @@ jobs:
 
       - name: Build macOS dmg bundle
         run: yarn tauri build --bundles dmg
+
+      - name: Verify .dmg filename version
+        env:
+          EXPECTED_VERSION: ${{ needs.prepare-release.outputs.version }}
+        run: |
+          mapfile -t FILES < <(ls src-tauri/target/release/bundle/dmg/*.dmg)
+          if [ "${#FILES[@]}" -eq 0 ]; then
+            echo "No .dmg files generated"
+            exit 1
+          fi
+
+          for file in "${FILES[@]}"; do
+            base=$(basename "$file")
+            echo "Generated .dmg artifact: $base"
+            if [[ "$base" != *"_${EXPECTED_VERSION}_"* ]]; then
+              echo "Version mismatch: expected filename to contain _${EXPECTED_VERSION}_, got $base"
+              exit 1
+            fi
+          done
 
       - name: Upload macOS dmg artifact (workflow)
         uses: actions/upload-artifact@v4
