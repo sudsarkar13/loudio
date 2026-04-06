@@ -215,9 +215,15 @@ jobs:
         uses: actions/setup-node@v5
         with:
           node-version: 20
+          package-manager-cache: false
 
-      - name: Enable Corepack
-        run: corepack enable
+      - name: Enable Corepack and activate Yarn 4.13.0
+        run: |
+          corepack enable
+          corepack prepare yarn@4.13.0 --activate
+
+      - name: Verify Yarn version
+        run: yarn --version
 
       - name: Install Rust toolchain
         uses: dtolnay/rust-toolchain@stable
@@ -270,9 +276,15 @@ jobs:
         uses: actions/setup-node@v5
         with:
           node-version: 20
+          package-manager-cache: false
 
-      - name: Enable Corepack
-        run: corepack enable
+      - name: Enable Corepack and activate Yarn 4.13.0
+        run: |
+          corepack enable
+          corepack prepare yarn@4.13.0 --activate
+
+      - name: Verify Yarn version
+        run: yarn --version
 
       - name: Install Rust toolchain
         uses: dtolnay/rust-toolchain@stable
