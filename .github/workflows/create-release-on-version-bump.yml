@@ -43,7 +43,7 @@ jobs:
           BEFORE_SHA: ${{ github.event.before }}
           CURRENT_VERSION: ${{ steps.current.outputs.version }}
         run: |
-          PREVIOUS_VERSION=$(node -e "
+          PREVIOUS_VERSION=$(node - <<'NODE_SCRIPT'
             const { execSync } = require('child_process');
             const beforeSha = (process.env.BEFORE_SHA || '').trim();
             const currentVersion = (process.env.CURRENT_VERSION || '').trim();
@@ -52,7 +52,7 @@ jobs:
             const readVersionAt = (ref) => {
               if (!ref) return '';
               try {
-                const raw = execSync("git show " + ref + ":package.json", { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] });
+                const raw = execSync('git show ' + ref + ':package.json', { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] });
                 const json = JSON.parse(raw);
                 return (json.version || '').toString().trim();
               } catch {
@@ -84,7 +84,7 @@ jobs:
                   .map((t) => t.trim())
                   .filter(Boolean);
 
-                const previousTag = tags.find((t) => t !== "v" + currentVersion);
+                const previousTag = tags.find((t) => t !== 'v' + currentVersion);
                 if (previousTag) {
                   previousVersion = previousTag.replace(/^v/, '');
                 }
@@ -94,7 +94,8 @@ jobs:
             }
 
             process.stdout.write(previousVersion);
-          ")
+          NODE_SCRIPT
+          )
 
           echo "version=$PREVIOUS_VERSION" >> "$GITHUB_OUTPUT"
           if [ -n "$PREVIOUS_VERSION" ]; then
