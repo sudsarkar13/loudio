@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Move } from "lucide-react";
+import { Mic, Move } from "lucide-react";
 import {
 	DEFAULT_SETTINGS,
 	LANGUAGES,
@@ -35,12 +35,20 @@ import {
 	LEGACY_EULA_STORAGE_KEY,
 	MODEL_OPTIONS,
 } from "@/app/components/transcription-studio/constants";
-import { resolvePreferredMicMimeType, encodeWav } from "@/app/components/transcription-studio/utils/audio";
-import { formatPlaybackTime, formatRecordingDate, formatRecordingSize } from "@/app/components/transcription-studio/utils/format";
+import {
+	resolvePreferredMicMimeType,
+	encodeWav,
+} from "@/app/components/transcription-studio/utils/audio";
+import {
+	formatPlaybackTime,
+	formatRecordingDate,
+	formatRecordingSize,
+} from "@/app/components/transcription-studio/utils/format";
 import { mergeSettings } from "@/app/components/transcription-studio/utils/settings";
 import { useTranscriptWorkflow } from "@/app/components/transcription-studio/hooks/useTranscriptWorkflow";
 import { useRecordingHistory } from "@/app/components/transcription-studio/hooks/useRecordingHistory";
 import { useDesktopMenuBindings } from "@/app/components/transcription-studio/hooks/useDesktopMenuBindings";
+import { useMicrophoneDevices } from "@/app/components/transcription-studio/hooks/useMicrophoneDevices";
 import { CompactToolbar } from "@/app/components/transcription-studio/components/CompactToolbar";
 import { EulaGate } from "@/app/components/transcription-studio/components/EulaGate";
 import { RecordingHistoryView } from "@/app/components/transcription-studio/components/RecordingHistoryView";
@@ -88,8 +96,9 @@ export function TranscriptionStudio() {
 	const [isCompactMode, setIsCompactMode] = useState<boolean>(false);
 	const [compactAnchor, setCompactAnchor] =
 		useState<CompactWindowAnchor>("bottom");
-	const [activeGeneralView, setActiveGeneralView] =
-		useState<"activity" | "history">("activity");
+	const [activeGeneralView, setActiveGeneralView] = useState<
+		"activity" | "history"
+	>("activity");
 	const {
 		recordingHistory,
 		isLoadingRecordingHistory,
@@ -117,6 +126,41 @@ export function TranscriptionStudio() {
 		onSetPlaybackRate,
 		onToggleActivePlayback,
 	} = useRecordingHistory({ setStatus });
+
+	const {
+		devices: microphoneDevices,
+		hasPermission: hasMicrophonePermission,
+		isEnumerating: isEnumeratingMicrophones,
+		errorMessage: microphoneErrorMessage,
+		requestPermission: requestMicrophonePermission,
+		refresh: refreshMicrophoneDevices,
+	} = useMicrophoneDevices();
+
+	// If a previously selected microphone is no longer present (unplugged, BT
+	// disconnected, etc.), fall back to the system default so the next recording
+	// attempt does not fail with an OverconstrainedError.
+	useEffect(() => {
+		const selectedDeviceId = (settings.micDeviceId ?? "").trim();
+		if (!selectedDeviceId) return;
+		if (isEnumeratingMicrophones) return;
+
+		const stillAvailable = microphoneDevices.some(
+			(device) => device.deviceId === selectedDeviceId,
+		);
+
+		if (!stillAvailable) {
+			setSettings((prev) => ({ ...prev, micDeviceId: "" }));
+			setStatus(
+				"Selected microphone is no longer available. Falling back to the system default.",
+			);
+		}
+	}, [
+		isEnumeratingMicrophones,
+		microphoneDevices,
+		settings.micDeviceId,
+		setSettings,
+		setStatus,
+	]);
 
 	useDesktopMenuBindings({
 		onPickAudio,
@@ -299,11 +343,13 @@ export function TranscriptionStudio() {
 		);
 	}, [isCompactMode]);
 
-
 	useEffect(() => {
 		if (typeof document === "undefined") return;
 
-		document.documentElement.classList.toggle("loudio-compact-window", isCompactMode);
+		document.documentElement.classList.toggle(
+			"loudio-compact-window",
+			isCompactMode,
+		);
 		document.body.classList.toggle("loudio-compact-window", isCompactMode);
 
 		return () => {
@@ -342,6 +388,15 @@ export function TranscriptionStudio() {
 		return parts[parts.length - 1] || audioPath;
 	}, [audioPath]);
 
+	const selectedMicrophoneLabel = useMemo(() => {
+		const selectedDeviceId = (settings.micDeviceId ?? "").trim();
+		const match = microphoneDevices.find(
+			(device) => device.deviceId === selectedDeviceId,
+		);
+		if (match) return `Input: ${match.label}`;
+		return "Input: System default microphone";
+	}, [microphoneDevices, settings.micDeviceId]);
+
 	const busy =
 		isBootstrapping ||
 		isTranscribing ||
@@ -351,7 +406,9 @@ export function TranscriptionStudio() {
 
 	function onUseRecordingForTranscription(item: RecordingHistoryItem): void {
 		if (isRecording || isBootstrapping || isMicTranscribing || isTranscribing) {
-			setStatus("Please wait for the current recording/transcription task to finish.");
+			setStatus(
+				"Please wait for the current recording/transcription task to finish.",
+			);
 			return;
 		}
 
@@ -359,15 +416,18 @@ export function TranscriptionStudio() {
 		setMicBlob(null);
 		setMicMimeType("");
 		setActiveGeneralView("activity");
-		setStatus(`Selected ${item.fileName} for transcription. Adjust settings and click Transcribe.`);
+		setStatus(
+			`Selected ${item.fileName} for transcription. Adjust settings and click Transcribe.`,
+		);
 	}
-
 
 	async function onAcceptEula() {
 		persistCurrentEulaAcceptance();
 
 		setHasAcceptedEula(true);
-		setStatus(`License terms (${EULA_VERSION}) accepted. Preparing runtime dependencies…`);
+		setStatus(
+			`License terms (${EULA_VERSION}) accepted. Preparing runtime dependencies…`,
+		);
 	}
 
 	async function onDeclineEula() {
@@ -404,7 +464,12 @@ export function TranscriptionStudio() {
 		}
 
 		try {
-			const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+			const selectedDeviceId = (settings.micDeviceId ?? "").trim();
+			const audioConstraints: MediaTrackConstraints =
+				selectedDeviceId ? { deviceId: { exact: selectedDeviceId } } : {};
+			const stream = await navigator.mediaDevices.getUserMedia({
+				audio: audioConstraints,
+			});
 			mediaStreamRef.current = stream;
 			setAudioPath("");
 			setMicBlob(null);
@@ -633,20 +698,18 @@ export function TranscriptionStudio() {
 		void loadRecordingHistory();
 	}, [activeGeneralView, hasAcceptedEula, isCheckingEula, isCompactMode]);
 
-
-
 	return (
 		<main
 			className={
 				isCompactMode ? "loudio-shell loudio-shell-compact" : "loudio-shell"
 			}>
-			{!isCheckingEula && !hasAcceptedEula ? (
+			{!isCheckingEula && !hasAcceptedEula ?
 				<EulaGate
 					eulaVersion={EULA_VERSION}
 					onAccept={onAcceptEula}
 					onDecline={onDeclineEula}
 				/>
-			) : null}
+			:	null}
 
 			{isCompactMode ?
 				<section className="compact-shell">
@@ -700,6 +763,51 @@ export function TranscriptionStudio() {
 						onTranscribe={onTranscribe}
 						onCopy={onCopy}
 						onClearTranscript={clearTranscriptView}
+						trailing={
+							<div
+								className="compact-mic-select"
+								title={
+									hasMicrophonePermission ? "Select microphone" : (
+										"Allow microphone access to see device names"
+									)
+								}>
+								<Mic
+									size={12}
+									aria-hidden="true"
+									className="compact-mic-select-icon"
+								/>
+								<select
+									className="select compact-mic-select-input"
+									value={(settings.micDeviceId ?? "").trim()}
+									onChange={(event) =>
+										setSettings((prev) => ({
+											...prev,
+											micDeviceId: event.target.value,
+										}))
+									}
+									disabled={isEnumeratingMicrophones}
+									aria-label="Select microphone input device">
+									{microphoneDevices.map((device) => (
+										<option
+											key={device.deviceId || "__default__"}
+											value={device.deviceId}>
+											{device.label}
+										</option>
+									))}
+								</select>
+								{!hasMicrophonePermission ?
+									<button
+										type="button"
+										className="compact-mic-permission-btn"
+										onClick={() => {
+											void requestMicrophonePermission();
+										}}
+										title="Grant microphone access">
+										Grant
+									</button>
+								:	null}
+							</div>
+						}
 					/>
 
 					<div className="status status-modern compact-status">{status}</div>
@@ -713,12 +821,12 @@ export function TranscriptionStudio() {
 						autoCorrect="on"
 						autoCapitalize="sentences"
 					/>
-					{livePreviewTranscript ? (
+					{livePreviewTranscript ?
 						<div className="transcript-live-preview" aria-live="polite">
 							<p className="transcript-live-label">Live preview</p>
 							<p className="transcript-live-text">{livePreviewTranscript}</p>
 						</div>
-					) : null}
+					:	null}
 				</section>
 			:	<>
 					<section className="top-strip" aria-label="App status">
@@ -729,7 +837,10 @@ export function TranscriptionStudio() {
 							<span className="top-strip-state">
 								{isBootstrapping ? "Preparing" : "Ready"}
 							</span>
-							<div className="general-view-switch" role="tablist" aria-label="General mode view switch">
+							<div
+								className="general-view-switch"
+								role="tablist"
+								aria-label="General mode view switch">
 								<button
 									className={
 										activeGeneralView === "activity" ?
@@ -769,16 +880,22 @@ export function TranscriptionStudio() {
 							modelOptions={MODEL_OPTIONS}
 							languages={LANGUAGES}
 							setSettings={setSettings}
+							microphoneDevices={microphoneDevices}
+							selectedMicrophoneDeviceId={(settings.micDeviceId ?? "").trim()}
+							hasMicrophonePermission={hasMicrophonePermission}
+							isEnumeratingMicrophones={isEnumeratingMicrophones}
+							microphoneErrorMessage={microphoneErrorMessage}
+							onRequestMicrophonePermission={requestMicrophonePermission}
+							onRefreshMicrophoneDevices={refreshMicrophoneDevices}
 						/>
 
 						<section
 							className={
-								activeGeneralView === "history"
-									? "card studio-workspace studio-workspace-history"
-									: "card studio-workspace"
-							}
-						>
-							{activeGeneralView === "activity" ? (
+								activeGeneralView === "history" ?
+									"card studio-workspace studio-workspace-history"
+								:	"card studio-workspace"
+							}>
+							{activeGeneralView === "activity" ?
 								<WorkspaceActivityView
 									isRecording={isRecording}
 									busy={busy}
@@ -788,6 +905,7 @@ export function TranscriptionStudio() {
 									livePreviewTranscript={livePreviewTranscript}
 									selectedAudioLabel={selectedAudioLabel}
 									micBlob={micBlob}
+									selectedMicrophoneLabel={selectedMicrophoneLabel}
 									isBootstrapping={isBootstrapping}
 									runtimeBootstrapPercent={runtimeBootstrapPercent}
 									runtimeBootstrapMessage={runtimeBootstrapMessage}
@@ -802,8 +920,7 @@ export function TranscriptionStudio() {
 									onCopy={onCopy}
 									onClearTranscript={clearTranscriptView}
 								/>
-							) : (
-								<RecordingHistoryView
+							:	<RecordingHistoryView
 									isLoadingRecordingHistory={isLoadingRecordingHistory}
 									deletingRecordingPath={deletingRecordingPath}
 									isDeletingSelectedRecordings={isDeletingSelectedRecordings}
@@ -830,11 +947,13 @@ export function TranscriptionStudio() {
 									onSetPlaybackRate={onSetPlaybackRate}
 									onSeekPlayback={onSeekPlayback}
 									onPlayRecording={onPlayRecording}
-									onUseRecordingForTranscription={onUseRecordingForTranscription}
+									onUseRecordingForTranscription={
+										onUseRecordingForTranscription
+									}
 									onDeleteRecording={onDeleteRecording}
 									onToggleSelectRecording={onToggleSelectRecording}
 								/>
-							)}
+							}
 						</section>
 					</section>
 				</>
