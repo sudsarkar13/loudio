@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Mic, Move } from "lucide-react";
+
 import {
 	DEFAULT_SETTINGS,
 	LANGUAGES,
@@ -49,8 +49,9 @@ import { useTranscriptWorkflow } from "@/app/components/transcription-studio/hoo
 import { useRecordingHistory } from "@/app/components/transcription-studio/hooks/useRecordingHistory";
 import { useDesktopMenuBindings } from "@/app/components/transcription-studio/hooks/useDesktopMenuBindings";
 import { useMicrophoneDevices } from "@/app/components/transcription-studio/hooks/useMicrophoneDevices";
-import { CompactToolbar } from "@/app/components/transcription-studio/components/CompactToolbar";
+import { CompactShell } from "@/app/components/transcription-studio/components/CompactShell";
 import { EulaGate } from "@/app/components/transcription-studio/components/EulaGate";
+import { GeneralTopStrip } from "@/app/components/transcription-studio/components/GeneralTopStrip";
 import { RecordingHistoryView } from "@/app/components/transcription-studio/components/RecordingHistoryView";
 import { SettingsPanel } from "@/app/components/transcription-studio/components/SettingsPanel";
 import { WorkspaceActivityView } from "@/app/components/transcription-studio/components/WorkspaceActivityView";
@@ -712,165 +713,41 @@ export function TranscriptionStudio() {
 			:	null}
 
 			{isCompactMode ?
-				<section className="compact-shell">
-					<div className="compact-topbar">
-						<div
-							className="compact-drag-strip"
-							onMouseDown={() => void onStartCompactDrag()}
-							title="Drag compact shell">
-							<Move size={13} />
-							<span>Compact</span>
-						</div>
-
-						<div className="compact-controls">
-							<button
-								className={
-									compactAnchor === "top" ?
-										"btn compact-btn compact-btn-active"
-									:	"btn compact-btn"
-								}
-								onClick={() => void onMoveCompactAnchor("top")}>
-								Top
-							</button>
-							<button
-								className={
-									compactAnchor === "bottom" ?
-										"btn compact-btn compact-btn-active"
-									:	"btn compact-btn"
-								}
-								onClick={() => void onMoveCompactAnchor("bottom")}>
-								Bottom
-							</button>
-							<button
-								className="btn compact-btn compact-btn-primary"
-								onClick={() => void onToggleCompactMode()}>
-								General
-							</button>
-						</div>
-					</div>
-
-					<CompactToolbar
-						className="toolbar-icons compact-toolbar"
-						iconSize={16}
-						busy={busy}
-						isRecording={isRecording}
-						isTranscribing={isTranscribing}
-						audioPath={audioPath}
-						transcriptDraft={transcriptDraft}
-						livePreviewTranscript={livePreviewTranscript}
-						onPickAudio={onPickAudio}
-						onToggleMicRecording={onToggleMicRecording}
-						onTranscribe={onTranscribe}
-						onCopy={onCopy}
-						onClearTranscript={clearTranscriptView}
-						trailing={
-							<div
-								className="compact-mic-select"
-								title={
-									hasMicrophonePermission ? "Select microphone" : (
-										"Allow microphone access to see device names"
-									)
-								}>
-								<Mic
-									size={12}
-									aria-hidden="true"
-									className="compact-mic-select-icon"
-								/>
-								<select
-									className="select compact-mic-select-input"
-									value={(settings.micDeviceId ?? "").trim()}
-									onChange={(event) =>
-										setSettings((prev) => ({
-											...prev,
-											micDeviceId: event.target.value,
-										}))
-									}
-									disabled={isEnumeratingMicrophones}
-									aria-label="Select microphone input device">
-									{microphoneDevices.map((device) => (
-										<option
-											key={device.deviceId || "__default__"}
-											value={device.deviceId}>
-											{device.label}
-										</option>
-									))}
-								</select>
-								{!hasMicrophonePermission ?
-									<button
-										type="button"
-										className="compact-mic-permission-btn"
-										onClick={() => {
-											void requestMicrophonePermission();
-										}}
-										title="Grant microphone access">
-										Grant
-									</button>
-								:	null}
-							</div>
-						}
-					/>
-
-					<div className="status status-modern compact-status">{status}</div>
-
-					<textarea
-						className="textarea transcript-area compact-transcript"
-						value={transcriptDraft}
-						onChange={(event) => setTranscriptDraft(event.target.value)}
-						placeholder="Transcript will appear here…"
-						spellCheck
-						autoCorrect="on"
-						autoCapitalize="sentences"
-					/>
-					{livePreviewTranscript ?
-						<div className="transcript-live-preview" aria-live="polite">
-							<p className="transcript-live-label">Live preview</p>
-							<p className="transcript-live-text">{livePreviewTranscript}</p>
-						</div>
-					:	null}
-				</section>
+				<CompactShell
+					compactAnchor={compactAnchor}
+					onStartCompactDrag={onStartCompactDrag}
+					onMoveCompactAnchor={onMoveCompactAnchor}
+					onToggleCompactMode={onToggleCompactMode}
+					busy={busy}
+					isRecording={isRecording}
+					isTranscribing={isTranscribing}
+					audioPath={audioPath}
+					transcriptDraft={transcriptDraft}
+					livePreviewTranscript={livePreviewTranscript}
+					onPickAudio={onPickAudio}
+					onToggleMicRecording={onToggleMicRecording}
+					onTranscribe={onTranscribe}
+					onCopy={onCopy}
+					onClearTranscript={clearTranscriptView}
+					microphoneDevices={microphoneDevices}
+					selectedMicrophoneDeviceId={(settings.micDeviceId ?? "").trim()}
+					hasMicrophonePermission={hasMicrophonePermission}
+					isEnumeratingMicrophones={isEnumeratingMicrophones}
+					setSettings={setSettings}
+					status={status}
+					setTranscriptDraft={setTranscriptDraft}
+					requestMicrophonePermission={() => {
+						void requestMicrophonePermission();
+					}}
+				/>
 			:	<>
-					<section className="top-strip" aria-label="App status">
-						<span className="pill pill-soft">
-							{activeProfile?.title ?? "Runtime profile"}
-						</span>
-						<div className="top-strip-actions">
-							<span className="top-strip-state">
-								{isBootstrapping ? "Preparing" : "Ready"}
-							</span>
-							<div
-								className="general-view-switch"
-								role="tablist"
-								aria-label="General mode view switch">
-								<button
-									className={
-										activeGeneralView === "activity" ?
-											"btn compact-toggle-btn general-view-btn general-view-btn-active"
-										:	"btn compact-toggle-btn general-view-btn"
-									}
-									role="tab"
-									aria-selected={activeGeneralView === "activity"}
-									onClick={() => setActiveGeneralView("activity")}>
-									Activity
-								</button>
-								<button
-									className={
-										activeGeneralView === "history" ?
-											"btn compact-toggle-btn general-view-btn general-view-btn-active"
-										:	"btn compact-toggle-btn general-view-btn"
-									}
-									role="tab"
-									aria-selected={activeGeneralView === "history"}
-									onClick={() => setActiveGeneralView("history")}>
-									History
-								</button>
-							</div>
-							<button
-								className="btn compact-toggle-btn"
-								onClick={() => void onToggleCompactMode()}>
-								Compact Mode
-							</button>
-						</div>
-					</section>
+					<GeneralTopStrip
+						activeProfileTitle={activeProfile?.title ?? ""}
+						isBootstrapping={isBootstrapping}
+						activeView={activeGeneralView}
+						onSelectView={setActiveGeneralView}
+						onToggleCompactMode={onToggleCompactMode}
+					/>
 
 					<section className="studio-layout">
 						<SettingsPanel
