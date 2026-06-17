@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import type { ReactNode } from "react";
-import "@/app/styles/globals.css";
+import "@/app/globals.css";
 
 export const metadata: Metadata = {
   title: "Loudio | Offline Whisper Transcription",
