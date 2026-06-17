@@ -52,7 +52,7 @@ jobs:
             const readVersionAt = (ref) => {
               if (!ref) return '';
               try {
-                const raw = execSync(`git show ${ref}:package.json`, { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] });
+                const raw = execSync("git show " + ref + ":package.json", { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] });
                 const json = JSON.parse(raw);
                 return (json.version || '').toString().trim();
               } catch {
@@ -84,7 +84,7 @@ jobs:
                   .map((t) => t.trim())
                   .filter(Boolean);
 
-                const previousTag = tags.find((t) => t !== `v${currentVersion}`);
+                const previousTag = tags.find((t) => t !== "v" + currentVersion);
                 if (previousTag) {
                   previousVersion = previousTag.replace(/^v/, '');
                 }
