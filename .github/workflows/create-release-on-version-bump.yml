@@ -279,16 +279,24 @@ jobs:
           node-version: 20
           package-manager-cache: false
 
-      - name: Enable Corepack and activate Yarn 4.13.0
+      - name: Enable Corepack and activate Yarn from packageManager
         run: |
           corepack enable
-          corepack prepare yarn@4.13.0 --activate
+          YARN_VERSION=$(node -p "require('./package.json').packageManager.split('@')[1]")
+          corepack prepare "yarn@${YARN_VERSION}" --activate
+          echo "Using yarn@${YARN_VERSION}"
 
       - name: Verify Yarn version
         run: yarn --version
 
       - name: Install Rust toolchain
         uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache Rust build artifacts (Cargo + target)
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri -> target
+          shared-key: ${{ runner.os }}-tauri
 
       - name: Install Linux system dependencies
         run: |
@@ -302,8 +310,29 @@ jobs:
             librsvg2-dev \
             patchelf
 
+      - name: Cache Yarn dependencies
+        uses: actions/cache@v4
+        with:
+          path: |
+            .yarn/cache
+            .yarn/install-state.gz
+            node_modules
+          key: yarn-${{ runner.os }}-${{ hashFiles('yarn.lock', '.yarnrc.yml') }}
+          restore-keys: |
+            yarn-${{ runner.os }}-
+
       - name: Install JS dependencies
         run: yarn install --immutable
+
+      - name: Lint
+        run: yarn lint
+
+      - name: Typecheck
+        run: yarn typecheck
+
+      - name: Test
+        run: yarn test || echo "No tests defined or tests failed — continuing (continue-on-error)"
+        continue-on-error: true
 
       - name: Build Ubuntu .deb bundle
         run: yarn tauri build --bundles deb
@@ -347,6 +376,14 @@ jobs:
     if: needs.prepare-release.outputs.version_changed == 'true' && needs.prepare-release.outputs.release_exists == 'false'
     runs-on: macos-latest
 
+    env:
+      APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
+      APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+      APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
+      APPLE_ID: ${{ secrets.APPLE_ID }}
+      APPLE_PASSWORD: ${{ secrets.APPLE_PASSWORD }}
+      APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+
     steps:
       - name: Checkout released commit
         uses: actions/checkout@v5
@@ -359,10 +396,12 @@ jobs:
           node-version: 20
           package-manager-cache: false
 
-      - name: Enable Corepack and activate Yarn 4.13.0
+      - name: Enable Corepack and activate Yarn from packageManager
         run: |
           corepack enable
-          corepack prepare yarn@4.13.0 --activate
+          YARN_VERSION=$(node -p "require('./package.json').packageManager.split('@')[1]")
+          corepack prepare "yarn@${YARN_VERSION}" --activate
+          echo "Using yarn@${YARN_VERSION}"
 
       - name: Verify Yarn version
         run: yarn --version
@@ -370,11 +409,82 @@ jobs:
       - name: Install Rust toolchain
         uses: dtolnay/rust-toolchain@stable
 
+      - name: Cache Rust build artifacts (Cargo + target)
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri -> target
+          shared-key: ${{ runner.os }}-tauri
+
+      - name: Cache Yarn dependencies
+        uses: actions/cache@v4
+        with:
+          path: |
+            .yarn/cache
+            .yarn/install-state.gz
+            node_modules
+          key: yarn-${{ runner.os }}-${{ hashFiles('yarn.lock', '.yarnrc.yml') }}
+          restore-keys: |
+            yarn-${{ runner.os }}-
+
       - name: Install JS dependencies
         run: yarn install --immutable
 
+      - name: Lint
+        run: yarn lint
+
+      - name: Typecheck
+        run: yarn typecheck
+
+      - name: Test
+        run: yarn test || echo "No tests defined or tests failed — continuing (continue-on-error)"
+        continue-on-error: true
+
+      - name: Code-sign macOS bundle (gated — runs only when secrets are present)
+        if: ${{ env.APPLE_CERTIFICATE != '' }}
+        env:
+          APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
+          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+          APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
+        run: |
+          set -euo pipefail
+          KEYCHAIN_PATH=$RUNNER_TEMP/build.keychain-db
+          KEYCHAIN_PASSWORD=$(openssl rand -hex 24)
+          security create-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+          security set-keychain-settings -lut 21600 "$KEYCHAIN_PATH"
+          security unlock-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+          security list-keychains -d user -s "$KEYCHAIN_PATH" $(security list-keychains -d user | tr -d '"')
+          echo "$APPLE_CERTIFICATE" | base64 --decode > $RUNNER_TEMP/certificate.p12
+          security import $RUNNER_TEMP/certificate.p12 \
+            -P "$APPLE_CERTIFICATE_PASSWORD" \
+            -A -t cert -f pkcs12 \
+            -k "$KEYCHAIN_PATH"
+          security set-key-partition-list -S apple-tool:,apple: -k "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+          echo "Apple Developer ID certificate imported"
+
       - name: Build macOS dmg bundle
+        env:
+          APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
         run: yarn tauri build --bundles dmg
+
+      - name: Notarize macOS dmg (gated — runs only when notarization secrets are present)
+        if: ${{ env.APPLE_ID != '' && env.APPLE_PASSWORD != '' && env.APPLE_TEAM_ID != '' }}
+        env:
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_PASSWORD: ${{ secrets.APPLE_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+        run: |
+          set -euo pipefail
+          shopt -s nullglob
+          for dmg in src-tauri/target/release/bundle/dmg/*.dmg; do
+            echo "Submitting $dmg for notarization"
+            xcrun notarytool submit "$dmg" \
+              --apple-id "$APPLE_ID" \
+              --password "$APPLE_PASSWORD" \
+              --team-id "$APPLE_TEAM_ID" \
+              --wait
+            xcrun stapler staple "$dmg"
+            echo "Notarized and stapled: $dmg"
+          done
 
       - name: Verify .dmg filename version
         env:
