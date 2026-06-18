@@ -157,7 +157,9 @@ export function TranscriptionStudio() {
 		legacyDirs,
 		legacyDiskUsageBytes,
 		isMigratingLegacyRecordings,
+		currentRecordingsOutputDir,
 		migrateLegacyRecordingDirs,
+		revealRecordingsOutputDirInFinder,
 	} = useRecordingHistory({ setStatus });
 
 	// If a previously selected microphone is no longer present (unplugged, BT
@@ -429,6 +431,8 @@ export function TranscriptionStudio() {
 									legacyDirs={legacyDirs}
 									legacyDiskUsageBytes={legacyDiskUsageBytes}
 									isMigratingLegacyRecordings={isMigratingLegacyRecordings}
+									currentRecordingsOutputDir={currentRecordingsOutputDir}
+									revealRecordingsOutputDir={revealRecordingsOutputDirInFinder}
 									onMigrateLegacyRecordings={migrateLegacyRecordingDirs}
 								/>
 							}

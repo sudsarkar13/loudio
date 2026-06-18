@@ -200,6 +200,16 @@ export async function migrateLegacyRecordings(): Promise<LegacyMigrationResult> 
 	return invokeCommand<LegacyMigrationResult>("migrate_legacy_recordings");
 }
 
+export async function getCurrentRecordingsOutputDir(): Promise<string> {
+	if (!isTauriRuntime()) return "";
+	return invokeCommand<string>("current_recordings_output_dir");
+}
+
+export async function revealRecordingsOutputDir(): Promise<void> {
+	if (!isTauriRuntime()) return;
+	await invokeCommand<void>("reveal_recordings_output_dir");
+}
+
 export async function deleteMicrophoneRecording(
 	absolutePath: string,
 ): Promise<void> {

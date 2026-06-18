@@ -10,8 +10,8 @@ use crate::{
     paths::{runtime_dir, settings_path},
     process::{emit_transcription_progress, mime_type_to_extension},
     recordings::{
-        delete_microphone_recording, list_legacy_recording_dirs, list_microphone_recordings,
-        migrate_legacy_recordings,
+        current_recordings_output_dir, delete_microphone_recording, list_legacy_recording_dirs,
+        list_microphone_recordings, migrate_legacy_recordings, reveal_recordings_output_dir,
     },
     transcription::{transcribe_with_python, transcribe_with_whisper_cpp},
 };
@@ -202,4 +202,18 @@ pub fn migrate_legacy_recordings_command(
     app: tauri::AppHandle,
 ) -> Result<crate::models::LegacyMigrationResult, String> {
     migrate_legacy_recordings(&app)
+}
+
+#[tauri::command]
+pub fn current_recordings_output_dir_command(
+    app: tauri::AppHandle,
+) -> Result<String, String> {
+    current_recordings_output_dir(&app)
+}
+
+#[tauri::command]
+pub fn reveal_recordings_output_dir_command(
+    app: tauri::AppHandle,
+) -> Result<(), String> {
+    reveal_recordings_output_dir(&app)
 }

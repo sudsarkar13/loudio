@@ -11,12 +11,18 @@ use crate::{
 ///
 /// Adding a new historical bundle id here is the supported way to keep old
 /// microphone recordings discoverable after a product rename.
-const LEGACY_BUNDLE_IDS: &[&str] = &[
+const KNOWN_BUNDLE_IDS: &[&str] = &[
     "com.lexprotech.loudio",
     "com.loudio.app",
     "com.loudio.desktop",
     "dev.loudio.app",
 ];
+
+/// Patterns in app-support subdir names that suggest a Loudio-related
+/// installation. We use these as a fallback in case the running binary uses a
+/// bundle id that isn't in [`KNOWN_BUNDLE_IDS`] yet (e.g. a developer's local
+/// fork), so we never silently strand microphone recordings on disk.
+const LOUDIO_DIR_HINTS: &[&str] = &["loudio"];
 
 /// Lists microphone recordings stored in the app's output directory.
 ///
@@ -218,6 +224,17 @@ fn platform_app_support_root() -> Option<PathBuf> {
 /// recordings but are NOT the current app's data dir. Each entry has a count
 /// and total size so the UI can warn the user about stranded storage and
 /// offer a one-click migration.
+///
+/// The scan is intentionally broad:
+///
+/// 1. Every bundle id in [`KNOWN_BUNDLE_IDS`] is checked first (the cheap
+///    fast-path).
+/// 2. Additionally, *any* sibling subdirectory of the platform app-support
+///    root whose name contains "loudio" is checked, so we catch cases where
+///    a developer ran a local build under a custom bundle id.
+///
+/// The current app's data dir is excluded via canonical-path comparison so
+/// the running binary never lists itself as a "legacy" dir.
 pub fn list_legacy_recording_dirs(
     app: &tauri::AppHandle,
 ) -> Result<Vec<LegacyRecordingDir>, String> {
@@ -233,9 +250,33 @@ pub fn list_legacy_recording_dirs(
         .canonicalize()
         .ok();
 
+    // Collect candidate subdir names: known ids + any "loudio"-named subdir
+    // that we discover on disk.
+    let mut candidate_names: std::collections::BTreeSet<String> =
+        KNOWN_BUNDLE_IDS.iter().map(|s| s.to_string()).collect();
+
+    if let Ok(entries) = fs::read_dir(&support_root) {
+        for entry in entries.flatten() {
+            let path = entry.path();
+            if !path.is_dir() {
+                continue;
+            }
+            let Some(name) = path.file_name().and_then(|value| value.to_str()) else {
+                continue;
+            };
+            let lower = name.to_ascii_lowercase();
+            if LOUDIO_DIR_HINTS.iter().any(|hint| lower.contains(hint)) {
+                candidate_names.insert(name.to_string());
+            }
+        }
+    }
+
     let mut out: Vec<LegacyRecordingDir> = Vec::new();
-    for bundle_id in LEGACY_BUNDLE_IDS {
-        let candidate = support_root.join(bundle_id).join("runtime").join("output");
+    for candidate_name in candidate_names {
+        let candidate = support_root
+            .join(&candidate_name)
+            .join("runtime")
+            .join("output");
         if !candidate.is_dir() {
             continue;
         }
@@ -252,7 +293,7 @@ pub fn list_legacy_recording_dirs(
             continue;
         }
         out.push(LegacyRecordingDir {
-            bundle_id: (*bundle_id).to_string(),
+            bundle_id: candidate_name,
             absolute_path: candidate.to_string_lossy().to_string(),
             file_count,
             size_bytes,
@@ -260,6 +301,54 @@ pub fn list_legacy_recording_dirs(
     }
 
     Ok(out)
+}
+
+/// Returns the current app's recordings output dir as a plain string. Useful
+/// for surfacing the actual path the running Tauri binary is using, so users
+/// (and our diagnostics) can see exactly where microphone files are being
+/// written and read from.
+pub fn current_recordings_output_dir(app: &tauri::AppHandle) -> Result<String, String> {
+    let dir = recordings_output_dir(app).map_err(|e| e.to_string())?;
+    Ok(dir.to_string_lossy().to_string())
+}
+
+/// Opens the recordings output dir in the platform file manager. On macOS
+/// this uses `open` which reveals the folder in Finder; on Linux it uses
+/// `xdg-open`; on Windows it uses `explorer`. Used by the History view's
+/// "Show in Finder" action so users can verify where their files actually
+/// live.
+pub fn reveal_recordings_output_dir(app: &tauri::AppHandle) -> Result<(), String> {
+    let dir = recordings_output_dir(app).map_err(|e| e.to_string())?;
+    fs::create_dir_all(&dir)
+        .map_err(|e| format!("Failed to ensure recordings directory exists: {e}"))?;
+
+    #[cfg(target_os = "macos")]
+    {
+        std::process::Command::new("open")
+            .arg(&dir)
+            .spawn()
+            .map_err(|e| format!("Failed to open Finder: {e}"))?;
+    }
+    #[cfg(target_os = "linux")]
+    {
+        std::process::Command::new("xdg-open")
+            .arg(&dir)
+            .spawn()
+            .map_err(|e| format!("Failed to open file manager: {e}"))?;
+    }
+    #[cfg(target_os = "windows")]
+    {
+        std::process::Command::new("explorer")
+            .arg(&dir)
+            .spawn()
+            .map_err(|e| format!("Failed to open Explorer: {e}"))?;
+    }
+    #[cfg(not(any(target_os = "macos", target_os = "linux", target_os = "windows")))]
+    {
+        return Err("Reveal in file manager is not supported on this platform.".into());
+    }
+
+    Ok(())
 }
 
 /// Walks a directory and returns `(mic_file_count, total_bytes)` for files that

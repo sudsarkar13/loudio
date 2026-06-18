@@ -35,6 +35,8 @@ fn main() {
             commands::delete_microphone_recording_command,
             commands::list_legacy_recording_dirs_command,
             commands::migrate_legacy_recordings_command,
+            commands::current_recordings_output_dir_command,
+            commands::reveal_recordings_output_dir_command,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

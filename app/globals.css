@@ -697,6 +697,25 @@ summary:focus-visible {
 	font-size: 0.84rem;
 }
 
+.history-empty-title {
+	margin: 0;
+}
+
+.history-empty-hint {
+	margin: 0.4rem 0 0;
+	font-size: 0.78rem;
+	color: var(--text-muted);
+}
+
+.history-empty-hint code {
+	background: rgba(255, 255, 255, 0.04);
+	border: 1px solid var(--border-soft);
+	border-radius: 4px;
+	padding: 0.05rem 0.3rem;
+	color: var(--text);
+	font-size: 0.74rem;
+}
+
 .history-legacy-banner {
 	display: flex;
 	align-items: center;
@@ -755,6 +774,54 @@ summary:focus-visible {
 
 .history-storage-legacy {
 	color: #f5b342;
+}
+
+.history-storage-path {
+	margin: 0.3rem 0 0;
+	padding: 0 0.7rem;
+	font-size: 0.72rem;
+	color: var(--text-muted);
+	font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, monospace;
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 0.5rem;
+}
+
+.history-storage-path > span {
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+	flex: 1 1 auto;
+	min-width: 0;
+}
+
+.history-storage-path code {
+	background: rgba(255, 255, 255, 0.04);
+	border: 1px solid var(--border-soft);
+	border-radius: 4px;
+	padding: 0.05rem 0.35rem;
+	color: var(--text);
+}
+
+.history-storage-reveal {
+	display: inline-flex;
+	align-items: center;
+	gap: 0.3rem;
+	padding: 0.2rem 0.55rem;
+	font-size: 0.72rem;
+	background: rgba(47, 129, 247, 0.12);
+	border: 1px solid rgba(47, 129, 247, 0.3);
+	color: #6aa6ff;
+	border-radius: 6px;
+	cursor: pointer;
+	font-family: inherit;
+	flex-shrink: 0;
+}
+
+.history-storage-reveal:hover {
+	background: rgba(47, 129, 247, 0.2);
+	border-color: rgba(47, 129, 247, 0.5);
 }
 
 .history-list {

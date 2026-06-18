@@ -4,6 +4,7 @@ import {
 	HardDrive,
 	Pause,
 	Play,
+	ExternalLink,
 } from "lucide-react";
 import type { ChangeEvent } from "react";
 import type { LegacyRecordingDir } from "@/lib/tauri";
@@ -28,6 +29,8 @@ interface RecordingHistoryViewProps {
 	legacyDirs: LegacyRecordingDir[];
 	legacyDiskUsageBytes: number;
 	isMigratingLegacyRecordings: boolean;
+	currentRecordingsOutputDir: string;
+	revealRecordingsOutputDir: () => Promise<void>;
 	formatRecordingSize: (bytes: number) => string;
 	formatRecordingDate: (isoDate: string) => string;
 	formatPlaybackTime: (seconds: number) => string;
@@ -83,6 +86,8 @@ export function RecordingHistoryView({
 	legacyDirs,
 	legacyDiskUsageBytes,
 	isMigratingLegacyRecordings,
+	currentRecordingsOutputDir,
+	revealRecordingsOutputDir,
 	onMigrateLegacyRecordings,
 }: RecordingHistoryViewProps) {
 	return (
@@ -185,6 +190,22 @@ export function RecordingHistoryView({
 				</span>
 			</div>
 
+			{currentRecordingsOutputDir ?
+				<div className="history-storage-path">
+					<span title={currentRecordingsOutputDir}>
+						Folder: <code>{currentRecordingsOutputDir}</code>
+					</span>
+					<button
+						type="button"
+						className="history-storage-reveal"
+						onClick={() => void revealRecordingsOutputDir()}
+						title="Open this folder in Finder">
+						<ExternalLink size={12} />
+						Reveal in Finder
+					</button>
+				</div>
+			:	null}
+
 			{activePlaybackItem ?
 				<div className="history-player" aria-live="polite">
 					<div className="history-player-main">
@@ -280,7 +301,18 @@ export function RecordingHistoryView({
 			{isLoadingRecordingHistory ?
 				<div className="history-empty">Fetching recordings…</div>
 			: recordingHistory.length === 0 ?
-				<div className="history-empty">No microphone recordings found yet.</div>
+				<div className="history-empty">
+					<p className="history-empty-title">
+						No microphone recordings found yet.
+					</p>
+					{currentRecordingsOutputDir ?
+						<p className="history-empty-hint">
+							Recordings will appear here once you stop a microphone
+							recording. Stored in{" "}
+							<code>{currentRecordingsOutputDir}</code>.
+						</p>
+					: null}
+				</div>
 			:	<div
 					className="history-list"
 					role="list"

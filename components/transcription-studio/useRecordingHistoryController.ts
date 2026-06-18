@@ -2,11 +2,13 @@ import { useMemo, useState } from "react";
 import type { ChangeEvent } from "react";
 import {
 	deleteMicrophoneRecording,
+	getCurrentRecordingsOutputDir,
 	getMicrophoneRecordingPlaybackUrl,
 	getRecordingsDiskUsage,
 	listLegacyRecordingDirs,
 	listMicrophoneRecordingHistory,
 	migrateLegacyRecordings,
+	revealRecordingsOutputDir,
 } from "@/lib/tauri";
 import type { LegacyRecordingDir } from "@/lib/tauri";
 import type { RecordingHistoryItem } from "@/lib/types";
@@ -39,6 +41,7 @@ interface UseRecordingHistoryControllerReturn {
 	legacyDirs: LegacyRecordingDir[];
 	legacyDiskUsageBytes: number;
 	isMigratingLegacyRecordings: boolean;
+	currentRecordingsOutputDir: string;
 	activePlaybackItem: RecordingHistoryItem | null;
 	loadRecordingHistory: (
 		options?: LoadRecordingHistoryOptions,
@@ -46,6 +49,7 @@ interface UseRecordingHistoryControllerReturn {
 	refreshRecordingsDiskUsage: () => Promise<void>;
 	refreshLegacyRecordingDirs: () => Promise<void>;
 	migrateLegacyRecordingDirs: () => Promise<void>;
+	revealRecordingsOutputDirInFinder: () => Promise<void>;
 	onDeleteRecording: (path: string) => Promise<void>;
 	onToggleSelectRecording: (path: string) => void;
 	onToggleSelectAllRecordings: () => void;
@@ -79,6 +83,8 @@ export function useRecordingHistoryController({
 	const [legacyDirs, setLegacyDirs] = useState<LegacyRecordingDir[]>([]);
 	const [isMigratingLegacyRecordings, setIsMigratingLegacyRecordings] =
 		useState<boolean>(false);
+	const [currentRecordingsOutputDir, setCurrentRecordingsOutputDir] =
+		useState<string>("");
 
 	const player = useAudioPreviewPlayer({ setStatus });
 	const {
@@ -136,8 +142,12 @@ export function useRecordingHistoryController({
 
 	async function refreshLegacyRecordingDirs(): Promise<void> {
 		try {
-			const dirs = await listLegacyRecordingDirs();
+			const [dirs, currentDir] = await Promise.all([
+				listLegacyRecordingDirs(),
+				getCurrentRecordingsOutputDir(),
+			]);
 			setLegacyDirs(Array.isArray(dirs) ? dirs : []);
+			setCurrentRecordingsOutputDir(currentDir ?? "");
 		} catch (error) {
 			console.warn("Failed to list legacy recording dirs", error);
 			setLegacyDirs([]);
@@ -157,6 +167,15 @@ export function useRecordingHistoryController({
 			setStatus(`Failed to migrate legacy recordings: ${String(error)}`);
 		} finally {
 			setIsMigratingLegacyRecordings(false);
+		}
+	}
+
+	async function revealRecordingsOutputDirInFinder(): Promise<void> {
+		try {
+			await revealRecordingsOutputDir();
+			setStatus("Opened recordings folder in Finder.");
+		} catch (error) {
+			setStatus(`Failed to open recordings folder: ${String(error)}`);
 		}
 	}
 
@@ -390,10 +409,12 @@ export function useRecordingHistoryController({
 		legacyDirs,
 		legacyDiskUsageBytes,
 		isMigratingLegacyRecordings,
+		currentRecordingsOutputDir,
 		loadRecordingHistory,
 		refreshRecordingsDiskUsage,
 		refreshLegacyRecordingDirs,
 		migrateLegacyRecordingDirs,
+		revealRecordingsOutputDirInFinder,
 		onDeleteRecording,
 		onToggleSelectRecording,
 		onToggleSelectAllRecordings,
