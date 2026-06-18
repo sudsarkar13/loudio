@@ -9,7 +9,10 @@ use crate::{
     },
     paths::{runtime_dir, settings_path},
     process::{emit_transcription_progress, mime_type_to_extension},
-    recordings::{delete_microphone_recording, list_microphone_recordings},
+    recordings::{
+        delete_microphone_recording, list_legacy_recording_dirs, list_microphone_recordings,
+        migrate_legacy_recordings,
+    },
     transcription::{transcribe_with_python, transcribe_with_whisper_cpp},
 };
 
@@ -175,9 +178,28 @@ pub fn list_microphone_recordings_command(
 }
 
 #[tauri::command]
+pub fn recordings_disk_usage_command(app: tauri::AppHandle) -> Result<u64, String> {
+    crate::recordings::recordings_disk_usage(&app)
+}
+
+#[tauri::command]
 pub fn delete_microphone_recording_command(
     app: tauri::AppHandle,
     absolute_path: String,
 ) -> Result<(), String> {
     delete_microphone_recording(app, absolute_path)
+}
+
+#[tauri::command]
+pub fn list_legacy_recording_dirs_command(
+    app: tauri::AppHandle,
+) -> Result<Vec<crate::models::LegacyRecordingDir>, String> {
+    list_legacy_recording_dirs(&app)
+}
+
+#[tauri::command]
+pub fn migrate_legacy_recordings_command(
+    app: tauri::AppHandle,
+) -> Result<crate::models::LegacyMigrationResult, String> {
+    migrate_legacy_recordings(&app)
 }

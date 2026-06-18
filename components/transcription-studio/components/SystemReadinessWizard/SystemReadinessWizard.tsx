@@ -1,10 +1,11 @@
 "use client";
 
-import { useCallback, useEffect, useMemo } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { createPortal } from "react-dom";
 import { AlertTriangle, ShieldCheck } from "lucide-react";
 
 import { useSystemReadinessWizard } from "@/components/transcription-studio/hooks/useSystemReadinessWizard";
-import type { ReadinessCheck, ReadinessReport } from "@/lib/tauri/types";
+import type { ReadinessCheck } from "@/lib/tauri/types";
 import { ReadinessCheckCard } from "./ReadinessCheckCard";
 import { ReadinessCompleteScreen } from "./ReadinessCompleteScreen";
 import { ReadinessProgressBar } from "./ReadinessProgressBar";
@@ -24,7 +25,7 @@ function osLabel(os: string): string {
 	}
 }
 
-export function SystemReadinessWizard() {
+export function SystemReadinessWizard({ open }: { open: boolean }) {
 	const {
 		report,
 		stage,
@@ -33,7 +34,6 @@ export function SystemReadinessWizard() {
 		installingId,
 		driftIds,
 		hasBlockingItems,
-		needsWizard,
 		isInitialCheckComplete,
 		check,
 		install,
@@ -41,6 +41,11 @@ export function SystemReadinessWizard() {
 		resetSkips,
 		enterApp,
 	} = useSystemReadinessWizard();
+
+	const [mounted, setMounted] = useState<boolean>(false);
+	useEffect(() => {
+		setMounted(true);
+	}, []);
 
 	const onInstall = useCallback(
 		async (id: string) => {
@@ -115,112 +120,126 @@ export function SystemReadinessWizard() {
 		// no-op: reserved for future telemetry
 	}, [driftIds]);
 
-	if (!isInitialCheckComplete || !report) {
-		return (
-			<section
-				className="card readiness-wizard"
+	if (!open || !mounted) return null;
+
+	const isReady = stage === "ready";
+	const showLoading = !isInitialCheckComplete || !report;
+
+	const modal = (
+		<div className="readiness-overlay" role="presentation">
+			<div className="readiness-overlay-backdrop" aria-hidden="true" />
+			<div
+				className="readiness-modal"
 				role="dialog"
 				aria-modal="true"
 				aria-labelledby="readiness-title">
-				<header className="readiness-header">
-					<div>
-						<h2 id="readiness-title">Preparing Loudio</h2>
-						<p className="helper">
-							We're checking your system for the tools Loudio needs to
-							transcribe locally.
-						</p>
-					</div>
-				</header>
-				<ReadinessProgressBar
-					stage={stage === "idle" ? "detecting" : stage}
-					percent={overallPercent}
-				/>
-			</section>
-		);
-	}
+				<div className="readiness-ambient" aria-hidden="true" />
+				<div className="readiness-modal-inner">
+					<header className="readiness-header">
+						<div>
+							<div className="readiness-header-row">
+								<span className="readiness-header-icon">
+									<ShieldCheck size={18} />
+								</span>
+								<h2 id="readiness-title">
+									{showLoading ? "Preparing Loudio" : "System readiness"}
+								</h2>
+							</div>
+							<p className="helper">
+								{showLoading ?
+									"We're checking your system for the tools Loudio needs to transcribe locally."
+								:	stageLabel}
+							</p>
+						</div>
+						{!showLoading ?
+							<button
+								type="button"
+								className="btn btn-ghost"
+								onClick={onRecheck}>
+								Re-check
+							</button>
+						:	null}
+					</header>
 
-	const isReady = stage === "ready";
+					<ReadinessProgressBar
+						stage={showLoading ? "detecting" : stage}
+						percent={overallPercent}
+					/>
 
-	return (
-		<section
-			className="card readiness-wizard"
-			role="dialog"
-			aria-modal={needsWizard ? "true" : undefined}
-			aria-labelledby="readiness-title">
-			<header className="readiness-header">
-				<div>
-					<div className="readiness-header-row">
-						<ShieldCheck size={18} />
-						<h2 id="readiness-title">System readiness</h2>
-					</div>
-					<p className="helper">{stageLabel}</p>
-				</div>
-				<button type="button" className="btn btn-ghost" onClick={onRecheck}>
-					Re-check
-				</button>
-			</header>
+					{!showLoading && stage === "failed" && hasBlockingItems ?
+						<div className="readiness-banner readiness-banner-warning">
+							<AlertTriangle size={16} />
+							<span>
+								One or more required steps need your attention. Use the manual
+								command in each card if automatic install is not available on
+								your system.
+							</span>
+						</div>
+					:	null}
 
-			<ReadinessProgressBar stage={stage} percent={overallPercent} />
+					{!showLoading && stage === "skipped" ?
+						<div className="readiness-banner readiness-banner-muted">
+							<span>
+								You skipped some optional prerequisites. Loudio will continue to
+								work with the engines that are installed.
+							</span>
+							<button
+								type="button"
+								className="btn btn-ghost"
+								onClick={onResetSkips}>
+								Reset skipped
+							</button>
+						</div>
+					:	null}
 
-			{stage === "failed" && hasBlockingItems ?
-				<div className="readiness-banner readiness-banner-warning">
-					<AlertTriangle size={16} />
-					<span>
-						One or more required steps need your attention. Use the manual
-						command in each card if automatic install is not available on your
-						system.
-					</span>
-				</div>
-			:	null}
-
-			{stage === "skipped" ?
-				<div className="readiness-banner readiness-banner-muted">
-					<span>
-						You skipped some optional prerequisites. Loudio will continue to
-						work with the engines that are installed.
-					</span>
-					<button
-						type="button"
-						className="btn btn-ghost"
-						onClick={onResetSkips}>
-						Reset skipped
-					</button>
-				</div>
-			:	null}
-
-			{isReady ?
-				<ReadinessCompleteScreen
-					osLabel={osLabel(report.os)}
-					archLabel={report.arch}
-					generatedAt={report.generatedAt}
-					onEnter={onEnter}
-					onRecheck={onRecheck}
-				/>
-			:	<div className="readiness-card-list">
-					{itemsToShow.map((check) => (
-						<ReadinessCheckCard
-							key={check.id}
-							check={check}
-							progress={progressById[check.id]}
-							isInstalling={installingId === check.id}
-							onInstall={(id) => {
-								void onInstall(id);
-							}}
-							onSkip={(id) => {
-								void onSkip(id);
-							}}
+					{!showLoading && isReady ?
+						<ReadinessCompleteScreen
+							osLabel={osLabel(report.os)}
+							archLabel={report.arch}
+							generatedAt={report.generatedAt}
+							onEnter={onEnter}
+							onRecheck={onRecheck}
 						/>
-					))}
-				</div>
-			}
+					: !showLoading ?
+						<div
+							className="readiness-card-list"
+							style={{
+								["--readiness-card-count" as string]: String(
+									itemsToShow.length,
+								),
+							}}>
+							{itemsToShow.map((check, index) => (
+								<ReadinessCheckCard
+									key={check.id}
+									check={check}
+									progress={progressById[check.id]}
+									isInstalling={installingId === check.id}
+									onInstall={(id) => {
+										void onInstall(id);
+									}}
+									onSkip={(id) => {
+										void onSkip(id);
+									}}
+									index={index}
+								/>
+							))}
+						</div>
+					:	null}
 
-			{!isReady && hasBlockingItems === false ?
-				<footer className="readiness-footer">
-					<button type="button" className="btn btn-primary" onClick={onEnter}>
-						Enter Loudio
-					</button>
-				</footer>
-			:	null}
-		</section>
+					{!showLoading && !isReady && hasBlockingItems === false ?
+						<footer className="readiness-footer">
+							<button
+								type="button"
+								className="btn btn-primary"
+								onClick={onEnter}>
+								Enter Loudio
+							</button>
+						</footer>
+					:	null}
+				</div>
+			</div>
+		</div>
 	);
+
+	return createPortal(modal, document.body);
 }

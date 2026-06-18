@@ -3,8 +3,12 @@ import type { ChangeEvent } from "react";
 import {
 	deleteMicrophoneRecording,
 	getMicrophoneRecordingPlaybackUrl,
+	getRecordingsDiskUsage,
+	listLegacyRecordingDirs,
 	listMicrophoneRecordingHistory,
+	migrateLegacyRecordings,
 } from "@/lib/tauri";
+import type { LegacyRecordingDir } from "@/lib/tauri";
 import type { RecordingHistoryItem } from "@/lib/types";
 import { useAudioPreviewPlayer } from "@/components/transcription-studio/hooks/useAudioPreviewPlayer";
 
@@ -31,10 +35,17 @@ interface UseRecordingHistoryControllerReturn {
 	playbackReady: boolean;
 	allHistorySelected: boolean;
 	hasSelectedRecordings: boolean;
+	recordingsDiskUsageBytes: number;
+	legacyDirs: LegacyRecordingDir[];
+	legacyDiskUsageBytes: number;
+	isMigratingLegacyRecordings: boolean;
 	activePlaybackItem: RecordingHistoryItem | null;
 	loadRecordingHistory: (
 		options?: LoadRecordingHistoryOptions,
 	) => Promise<void>;
+	refreshRecordingsDiskUsage: () => Promise<void>;
+	refreshLegacyRecordingDirs: () => Promise<void>;
+	migrateLegacyRecordingDirs: () => Promise<void>;
 	onDeleteRecording: (path: string) => Promise<void>;
 	onToggleSelectRecording: (path: string) => void;
 	onToggleSelectAllRecordings: () => void;
@@ -62,6 +73,11 @@ export function useRecordingHistoryController({
 		string[]
 	>([]);
 	const [isDeletingSelectedRecordings, setIsDeletingSelectedRecordings] =
+		useState<boolean>(false);
+	const [recordingsDiskUsageBytes, setRecordingsDiskUsageBytes] =
+		useState<number>(0);
+	const [legacyDirs, setLegacyDirs] = useState<LegacyRecordingDir[]>([]);
+	const [isMigratingLegacyRecordings, setIsMigratingLegacyRecordings] =
 		useState<boolean>(false);
 
 	const player = useAudioPreviewPlayer({ setStatus });
@@ -99,6 +115,51 @@ export function useRecordingHistoryController({
 		[recordingHistory, playingRecordingPath],
 	);
 
+	const legacyDiskUsageBytes: number = useMemo(
+		() =>
+			legacyDirs.reduce(
+				(sum: number, dir: LegacyRecordingDir) => sum + dir.sizeBytes,
+				0,
+			),
+		[legacyDirs],
+	);
+
+	async function refreshRecordingsDiskUsage(): Promise<void> {
+		try {
+			const bytes = await getRecordingsDiskUsage();
+			setRecordingsDiskUsageBytes(Number.isFinite(bytes) ? bytes : 0);
+		} catch {
+			// Non-fatal: storage usage is a soft indicator.
+			setRecordingsDiskUsageBytes(0);
+		}
+	}
+
+	async function refreshLegacyRecordingDirs(): Promise<void> {
+		try {
+			const dirs = await listLegacyRecordingDirs();
+			setLegacyDirs(Array.isArray(dirs) ? dirs : []);
+		} catch (error) {
+			console.warn("Failed to list legacy recording dirs", error);
+			setLegacyDirs([]);
+		}
+	}
+
+	async function migrateLegacyRecordingDirs(): Promise<void> {
+		setIsMigratingLegacyRecordings(true);
+		try {
+			const result = await migrateLegacyRecordings();
+			const migratedMb = (result.migratedBytes / (1024 * 1024)).toFixed(1);
+			setStatus(
+				`Moved ${result.migratedFiles} recording file(s) (${migratedMb} MB) into the current app data folder.`,
+			);
+			await loadRecordingHistory({ silent: true });
+		} catch (error) {
+			setStatus(`Failed to migrate legacy recordings: ${String(error)}`);
+		} finally {
+			setIsMigratingLegacyRecordings(false);
+		}
+	}
+
 	async function loadRecordingHistory(
 		options?: LoadRecordingHistoryOptions,
 	): Promise<void> {
@@ -119,6 +180,9 @@ export function useRecordingHistoryController({
 				);
 				return prev.filter((path) => available.has(path));
 			});
+
+			void refreshRecordingsDiskUsage();
+			void refreshLegacyRecordingDirs();
 
 			if (statusMessage) {
 				setStatus(statusMessage);
@@ -144,6 +208,7 @@ export function useRecordingHistoryController({
 				silent: true,
 				statusMessage: "Recording deleted.",
 			});
+			void refreshRecordingsDiskUsage();
 		} catch (error) {
 			setStatus(`Failed to delete recording: ${String(error)}`);
 		} finally {
@@ -198,6 +263,7 @@ export function useRecordingHistoryController({
 			stopPreviewPlayback(true);
 			setSelectedRecordingPaths([]);
 			await loadRecordingHistory({ silent: true });
+			void refreshRecordingsDiskUsage();
 		} catch (error) {
 			setStatus(`Failed to delete selected recordings: ${String(error)}`);
 		} finally {
@@ -233,6 +299,7 @@ export function useRecordingHistoryController({
 			stopPreviewPlayback(true);
 			setSelectedRecordingPaths([]);
 			await loadRecordingHistory({ silent: true });
+			void refreshRecordingsDiskUsage();
 		} catch (error) {
 			setStatus(`Failed to delete all recordings: ${String(error)}`);
 		} finally {
@@ -319,7 +386,14 @@ export function useRecordingHistoryController({
 		allHistorySelected,
 		hasSelectedRecordings,
 		activePlaybackItem,
+		recordingsDiskUsageBytes,
+		legacyDirs,
+		legacyDiskUsageBytes,
+		isMigratingLegacyRecordings,
 		loadRecordingHistory,
+		refreshRecordingsDiskUsage,
+		refreshLegacyRecordingDirs,
+		migrateLegacyRecordingDirs,
 		onDeleteRecording,
 		onToggleSelectRecording,
 		onToggleSelectAllRecordings,

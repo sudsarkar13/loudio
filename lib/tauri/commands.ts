@@ -163,6 +163,43 @@ export async function listMicrophoneRecordingHistory(): Promise<
 	return invokeCommand<RecordingHistoryItem[]>("list_microphone_recordings");
 }
 
+export async function getRecordingsDiskUsage(): Promise<number> {
+	if (!isTauriRuntime()) return 0;
+	return invokeCommand<number>("recordings_disk_usage");
+}
+
+export interface LegacyRecordingDir {
+	bundleId: string;
+	absolutePath: string;
+	fileCount: number;
+	sizeBytes: number;
+}
+
+export interface LegacyMigrationResult {
+	migratedFiles: number;
+	migratedBytes: number;
+	skippedFiles: number;
+	sources: string[];
+	errors: string[];
+}
+
+export async function listLegacyRecordingDirs(): Promise<LegacyRecordingDir[]> {
+	if (!isTauriRuntime()) return [];
+	return invokeCommand<LegacyRecordingDir[]>("list_legacy_recording_dirs");
+}
+
+export async function migrateLegacyRecordings(): Promise<LegacyMigrationResult> {
+	const empty: LegacyMigrationResult = {
+		migratedFiles: 0,
+		migratedBytes: 0,
+		skippedFiles: 0,
+		sources: [],
+		errors: [],
+	};
+	if (!isTauriRuntime()) return empty;
+	return invokeCommand<LegacyMigrationResult>("migrate_legacy_recordings");
+}
+
 export async function deleteMicrophoneRecording(
 	absolutePath: string,
 ): Promise<void> {

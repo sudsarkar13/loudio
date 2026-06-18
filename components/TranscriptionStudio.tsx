@@ -153,6 +153,11 @@ export function TranscriptionStudio() {
 		onStepPlayback,
 		onSetPlaybackRate,
 		onToggleActivePlayback,
+		recordingsDiskUsageBytes,
+		legacyDirs,
+		legacyDiskUsageBytes,
+		isMigratingLegacyRecordings,
+		migrateLegacyRecordingDirs,
 	} = useRecordingHistory({ setStatus });
 
 	// If a previously selected microphone is no longer present (unplugged, BT
@@ -282,9 +287,7 @@ export function TranscriptionStudio() {
 			className={
 				isCompactMode ? "loudio-shell loudio-shell-compact" : "loudio-shell"
 			}>
-			{!isCheckingEula && !hasAcceptedEula ?
-				<SystemReadinessWizard />
-			:	null}
+			<SystemReadinessWizard open={!isCheckingEula && !hasAcceptedEula} />
 
 			{isCompactMode ?
 				<CompactShell
@@ -422,6 +425,11 @@ export function TranscriptionStudio() {
 									}
 									onDeleteRecording={onDeleteRecording}
 									onToggleSelectRecording={onToggleSelectRecording}
+									recordingsDiskUsageBytes={recordingsDiskUsageBytes}
+									legacyDirs={legacyDirs}
+									legacyDiskUsageBytes={legacyDiskUsageBytes}
+									isMigratingLegacyRecordings={isMigratingLegacyRecordings}
+									onMigrateLegacyRecordings={migrateLegacyRecordingDirs}
 								/>
 							}
 						</section>

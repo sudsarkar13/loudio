@@ -1,5 +1,7 @@
 "use client";
 
+import { Check } from "lucide-react";
+
 interface ReadinessProgressBarProps {
 	stage: string;
 	percent: number;
@@ -25,33 +27,43 @@ export function ReadinessProgressBar({
 	percent,
 }: ReadinessProgressBarProps) {
 	const current = stageIndex(stage);
+	const clamped = Math.max(0, Math.min(100, percent));
+
 	return (
-		<ol
-			className="readiness-stepper"
-			aria-label="Readiness progress"
-			role="list">
-			{STAGES.map((entry, index) => {
-				const state =
-					index < current ? "done"
-					: index === current ? "active"
-					: "pending";
-				return (
-					<li
-						key={entry.id}
-						className={`readiness-step readiness-step-${state}`}
-						aria-current={state === "active" ? "step" : undefined}>
-						<span className="readiness-step-dot" />
-						<span className="readiness-step-label">{entry.label}</span>
-					</li>
-				);
-			})}
-			<div
-				className="readiness-stepper-bar"
+		<div className="readiness-stepper-wrap" aria-label="Readiness progress">
+			<ol
+				className="readiness-stepper"
+				role="list"
 				style={{
-					["--readiness-stepper-progress" as string]: `${Math.max(0, Math.min(100, percent))}%`,
-				}}
-				aria-hidden="true"
-			/>
-		</ol>
+					["--readiness-stepper-progress" as string]: `${clamped}%`,
+					["--readiness-stepper-active" as string]: String(current),
+				}}>
+				<span className="readiness-stepper-rail" aria-hidden="true" />
+				<span className="readiness-stepper-fill" aria-hidden="true" />
+				<span className="readiness-stepper-shimmer" aria-hidden="true" />
+				{STAGES.map((entry, index) => {
+					const state =
+						index < current ? "done"
+						: index === current ? "active"
+						: "pending";
+					return (
+						<li
+							key={entry.id}
+							className={`readiness-step readiness-step-${state}`}
+							aria-current={state === "active" ? "step" : undefined}
+							style={{
+								["--readiness-step-index" as string]: String(index),
+							}}>
+							<span className="readiness-step-dot">
+								{state === "done" ?
+									<Check size={12} strokeWidth={3} />
+								:	<span className="readiness-step-dot-inner" />}
+							</span>
+							<span className="readiness-step-label">{entry.label}</span>
+						</li>
+					);
+				})}
+			</ol>
+		</div>
 	);
 }

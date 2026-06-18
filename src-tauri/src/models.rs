@@ -84,14 +84,35 @@ pub struct RecordingHistoryItem {
     pub created_at_iso: String,
 }
 
+/// A previous bundle identifier's output directory that still holds microphone
+/// recordings. Used by the migration flow so users do not lose history when
+/// the bundle identifier changes between releases.
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct LegacyRecordingDir {
+	pub bundle_id: String,
+	pub absolute_path: String,
+	pub file_count: usize,
+	pub size_bytes: u64,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct LegacyMigrationResult {
+	pub migrated_files: usize,
+	pub migrated_bytes: u64,
+	pub skipped_files: usize,
+	pub sources: Vec<String>,
+	pub errors: Vec<String>,
+}
+
 pub fn runtime_profiles() -> Vec<RuntimeProfile> {
     vec![
         RuntimeProfile {
             id: "recommended-m1".into(),
             title: "Recommended (M1 Fast Local)".into(),
-            description:
-                "whisper.cpp with Metal acceleration. Best speed + offline reliability on Apple Silicon."
-                    .into(),
+            description: "whisper.cpp with Metal acceleration. Best speed + offline reliability on Apple Silicon."
+                .into(),
             engine: Engine::WhisperCpp,
             model: "small".into(),
             recommended: true,

@@ -31,7 +31,10 @@ fn main() {
             commands::transcribe_audio,
             commands::transcribe_microphone_audio,
             commands::list_microphone_recordings_command,
+            commands::recordings_disk_usage_command,
             commands::delete_microphone_recording_command,
+            commands::list_legacy_recording_dirs_command,
+            commands::migrate_legacy_recordings_command,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

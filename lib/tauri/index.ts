@@ -14,9 +14,12 @@ export {
 	deleteMicrophoneRecording,
 	getMicrophoneRecordingPlaybackUrl,
 	getPersistedSettings,
+	getRecordingsDiskUsage,
 	getRuntimeProfiles,
 	installReadinessItem,
+	listLegacyRecordingDirs,
 	listMicrophoneRecordingHistory,
+	migrateLegacyRecordings,
 	readFullLicense,
 	readinessManualCommand,
 	resetReadinessSkips,
@@ -25,6 +28,11 @@ export {
 	skipReadinessItem,
 	startMicrophoneTranscription,
 	startTranscription,
+} from "@/lib/tauri/commands";
+
+export type {
+	LegacyMigrationResult,
+	LegacyRecordingDir,
 } from "@/lib/tauri/commands";
 
 export { copyToClipboard, exportTextFile } from "@/lib/tauri/clipboard";
