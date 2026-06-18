@@ -7,6 +7,7 @@ mod models;
 mod paths;
 mod process;
 mod recordings;
+mod system_readiness;
 mod transcription;
 
 fn main() {
@@ -21,6 +22,12 @@ fn main() {
             commands::load_settings,
             commands::save_settings,
             bootstrap::bootstrap_runtime,
+            system_readiness::check_system_readiness,
+            system_readiness::install_readiness_item,
+            system_readiness::skip_readiness_item,
+            system_readiness::reset_readiness_skips,
+            system_readiness::read_full_license,
+            system_readiness::readiness_manual_command,
             commands::transcribe_audio,
             commands::transcribe_microphone_audio,
             commands::list_microphone_recordings_command,

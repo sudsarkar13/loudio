@@ -12,19 +12,21 @@ import { LANGUAGES } from "@/lib/defaults";
 import { chooseAudioFile } from "@/lib/tauri";
 import type { RecordingHistoryItem, RuntimeProfile } from "@/lib/types";
 import { useCompactWindowMode } from "@/components/transcription-studio/hooks/useCompactWindowMode";
-import { useEulaAcceptance } from "@/components/transcription-studio/hooks/useEulaAcceptance";
 import { useMicrophoneRecorder } from "@/components/transcription-studio/hooks/useMicrophoneRecorder";
 import { useRecordingHistory } from "@/components/transcription-studio/hooks/useRecordingHistory";
 import { useRuntimeBootstrap } from "@/components/transcription-studio/hooks/useRuntimeBootstrap";
+import { useSystemReadinessWizard } from "@/components/transcription-studio/hooks/useSystemReadinessWizard";
 import { useTranscriptWorkflow } from "@/components/transcription-studio/hooks/useTranscriptWorkflow";
 import { useDesktopMenuBindings } from "@/components/transcription-studio/hooks/useDesktopMenuBindings";
 import { useMicrophoneDevices } from "@/components/transcription-studio/hooks/useMicrophoneDevices";
 import { CompactShell } from "@/components/transcription-studio/components/CompactShell";
-import { EulaGate } from "@/components/transcription-studio/components/EulaGate";
 import { GeneralTopStrip } from "@/components/transcription-studio/components/GeneralTopStrip";
 import { RecordingHistoryView } from "@/components/transcription-studio/components/RecordingHistoryView";
 import { SettingsPanel } from "@/components/transcription-studio/components/SettingsPanel";
+import { SystemReadinessWizard } from "@/components/transcription-studio/components/SystemReadinessWizard/SystemReadinessWizard";
+import { ReadinessDriftBanner } from "@/components/transcription-studio/components/SystemReadinessWizard/ReadinessDriftBanner";
 import { WorkspaceActivityView } from "@/components/transcription-studio/components/WorkspaceActivityView";
+import { AboutPanel } from "@/components/transcription-studio/components/AboutPanel";
 
 export function TranscriptionStudio() {
 	const {
@@ -47,8 +49,15 @@ export function TranscriptionStudio() {
 
 	const [audioPath, setAudioPath] = useState<string>("");
 
-	const { hasAcceptedEula, isCheckingEula, onAccept, onDecline } =
-		useEulaAcceptance(setStatus);
+	const {
+		report: readinessReport,
+		needsWizard,
+		driftIds,
+		check: recheckReadiness,
+	} = useSystemReadinessWizard();
+
+	const hasAcceptedEula = !needsWizard;
+	const isCheckingEula = !readinessReport;
 
 	const {
 		profiles,
@@ -74,6 +83,17 @@ export function TranscriptionStudio() {
 		isCheckingEula,
 		setStatus,
 	});
+
+	const [forceWizard, setForceWizard] = useState<boolean>(false);
+	const showWizard = needsWizard || forceWizard;
+	const onReviewDrift = useCallback(() => {
+		setForceWizard(true);
+		void recheckReadiness(true);
+	}, [recheckReadiness]);
+
+	const [isAboutOpen, setIsAboutOpen] = useState<boolean>(false);
+	const onOpenAbout = useCallback(() => setIsAboutOpen(true), []);
+	const onCloseAbout = useCallback(() => setIsAboutOpen(false), []);
 
 	const {
 		devices: microphoneDevices,
@@ -263,15 +283,7 @@ export function TranscriptionStudio() {
 				isCompactMode ? "loudio-shell loudio-shell-compact" : "loudio-shell"
 			}>
 			{!isCheckingEula && !hasAcceptedEula ?
-				<EulaGate
-					eulaVersion={"2026-legal-v2"}
-					onAccept={() => {
-						void onAccept();
-					}}
-					onDecline={() => {
-						void onDecline();
-					}}
-				/>
+				<SystemReadinessWizard />
 			:	null}
 
 			{isCompactMode ?
@@ -317,7 +329,10 @@ export function TranscriptionStudio() {
 						activeView={activeGeneralView}
 						onSelectView={setActiveGeneralView}
 						onToggleCompactMode={onToggleCompactMode}
+						onOpenAbout={onOpenAbout}
 					/>
+
+					<ReadinessDriftBanner driftIds={driftIds} onReview={onReviewDrift} />
 
 					<section className="studio-layout">
 						<SettingsPanel
@@ -413,6 +428,7 @@ export function TranscriptionStudio() {
 					</section>
 				</>
 			}
+			<AboutPanel open={isAboutOpen} onClose={onCloseAbout} />
 		</main>
 	);
 }

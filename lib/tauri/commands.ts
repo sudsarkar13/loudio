@@ -11,7 +11,11 @@ import type {
 	TranscriptionResponse,
 } from "@/lib/types";
 import { invokeCommand, isTauriRuntime } from "@/lib/tauri/runtime";
-import type { MicrophoneTranscriptionPayload } from "@/lib/tauri/types";
+import type {
+	MicrophoneTranscriptionPayload,
+	ReadinessCheck,
+	ReadinessReport,
+} from "@/lib/tauri/types";
 
 export async function getRuntimeProfiles(): Promise<RuntimeProfile[]> {
 	if (!isTauriRuntime()) return RUNTIME_PROFILES;
@@ -36,6 +40,61 @@ export async function runRuntimeBootstrap(): Promise<string> {
 	}
 
 	return invokeCommand<string>("bootstrap_runtime");
+}
+
+export async function checkSystemReadiness(
+	forceFull = false,
+): Promise<ReadinessReport> {
+	if (!isTauriRuntime()) {
+		return {
+			generatedAt: new Date().toISOString(),
+			os: "web",
+			arch: "unknown",
+			items: [],
+			drift: [],
+		};
+	}
+	return invokeCommand<ReadinessReport>("check_system_readiness", {
+		forceFull,
+	});
+}
+
+export async function installReadinessItem(
+	id: string,
+): Promise<ReadinessCheck> {
+	if (!isTauriRuntime()) {
+		throw new Error(
+			"System readiness installer is available in the Tauri desktop app.",
+		);
+	}
+	return invokeCommand<ReadinessCheck>("install_readiness_item", { id });
+}
+
+export async function skipReadinessItem(id: string): Promise<void> {
+	if (!isTauriRuntime()) return;
+	await invokeCommand<void>("skip_readiness_item", { id });
+}
+
+export async function resetReadinessSkips(): Promise<void> {
+	if (!isTauriRuntime()) return;
+	await invokeCommand<void>("reset_readiness_skips");
+}
+
+export async function readFullLicense(): Promise<string> {
+	if (!isTauriRuntime()) {
+		return "License text is bundled with the Tauri desktop build.";
+	}
+	return invokeCommand<string>("read_full_license");
+}
+
+export async function readinessManualCommand(
+	id: string,
+	action: string,
+): Promise<string> {
+	if (!isTauriRuntime()) {
+		return "";
+	}
+	return invokeCommand<string>("readiness_manual_command", { id, action });
 }
 
 export async function chooseAudioFile(): Promise<string | null> {

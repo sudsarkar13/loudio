@@ -3,19 +3,26 @@
 export {
 	isTauriRuntime,
 	invokeCommand,
+	listenReadinessProgress,
 	listenRuntimeBootstrapProgress,
 	listenTranscriptionProgress,
 } from "@/lib/tauri/runtime";
 
 export {
+	checkSystemReadiness,
 	chooseAudioFile,
 	deleteMicrophoneRecording,
 	getMicrophoneRecordingPlaybackUrl,
 	getPersistedSettings,
 	getRuntimeProfiles,
+	installReadinessItem,
 	listMicrophoneRecordingHistory,
+	readFullLicense,
+	readinessManualCommand,
+	resetReadinessSkips,
 	runRuntimeBootstrap,
 	savePersistedSettings,
+	skipReadinessItem,
 	startMicrophoneTranscription,
 	startTranscription,
 } from "@/lib/tauri/commands";
@@ -35,6 +42,12 @@ export {
 export type {
 	CompactWindowAnchor,
 	MicrophoneTranscriptionPayload,
+	ReadinessActionKind,
+	ReadinessCheck,
+	ReadinessProgressEvent,
+	ReadinessReport,
+	ReadinessSeverity,
+	ReadinessState,
 	RuntimeBootstrapProgressEvent,
 	StoredWindowPosition,
 	TranscriptionProgressEvent,

@@ -1,0 +1,313 @@
+"use client";
+
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+
+import {
+	checkSystemReadiness,
+	installReadinessItem,
+	listenReadinessProgress,
+	resetReadinessSkips,
+	skipReadinessItem,
+} from "@/lib/tauri";
+import type {
+	ReadinessCheck,
+	ReadinessProgressEvent,
+	ReadinessReport,
+} from "@/lib/tauri/types";
+
+export type WizardStage =
+	| "idle"
+	| "detecting"
+	| "review"
+	| "installing"
+	| "verifying"
+	| "ready"
+	| "skipped"
+	| "failed";
+
+export interface UseSystemReadinessWizardResult {
+	report: ReadinessReport | null;
+	stage: WizardStage;
+	overallPercent: number;
+	progressById: Record<string, ReadinessProgressEvent>;
+	installingId: string | null;
+	driftIds: string[];
+	hasBlockingItems: boolean;
+	needsWizard: boolean;
+	isInitialCheckComplete: boolean;
+	check: (forceFull?: boolean) => Promise<ReadinessReport | null>;
+	install: (id: string) => Promise<ReadinessCheck | null>;
+	skip: (id: string) => Promise<void>;
+	resetSkips: () => Promise<void>;
+	enterApp: () => void;
+}
+
+const READINESS_COMPLETED_KEY = "loudio:readiness:completed:v1";
+
+function readCompletedFlag(): boolean {
+	if (typeof window === "undefined") return false;
+	return window.localStorage.getItem(READINESS_COMPLETED_KEY) === "true";
+}
+
+function writeCompletedFlag(value: boolean): void {
+	if (typeof window === "undefined") return;
+	if (value) {
+		window.localStorage.setItem(READINESS_COMPLETED_KEY, "true");
+	} else {
+		window.localStorage.removeItem(READINESS_COMPLETED_KEY);
+	}
+}
+
+function requiredItemsPass(report: ReadinessReport | null): boolean {
+	if (!report) return false;
+	return report.items
+		.filter((item) => item.severity === "required")
+		.every((item) => item.state === "installed" || item.state === "skipped");
+}
+
+export function useSystemReadinessWizard(): UseSystemReadinessWizardResult {
+	const [report, setReport] = useState<ReadinessReport | null>(null);
+	const [stage, setStage] = useState<WizardStage>("idle");
+	const [overallPercent, setOverallPercent] = useState<number>(0);
+	const [progressById, setProgressById] = useState<
+		Record<string, ReadinessProgressEvent>
+	>({});
+	const [installingId, setInstallingId] = useState<string | null>(null);
+	const [hasAcknowledged, setHasAcknowledged] = useState<boolean>(() =>
+		readCompletedFlag(),
+	);
+	const [isInitialCheckComplete, setIsInitialCheckComplete] =
+		useState<boolean>(false);
+	const unlistenRef = useRef<(() => void) | null>(null);
+	const mountedRef = useRef<boolean>(true);
+
+	useEffect(() => {
+		mountedRef.current = true;
+		return () => {
+			mountedRef.current = false;
+			unlistenRef.current?.();
+			unlistenRef.current = null;
+		};
+	}, []);
+
+	const handleProgress = useCallback((event: ReadinessProgressEvent) => {
+		if (!mountedRef.current) return;
+		setProgressById((prev) => ({
+			...prev,
+			[event.id]: event,
+		}));
+		if (event.id) {
+			setOverallPercent((prev) => {
+				if (event.done) return event.percent;
+				return Math.max(prev, event.percent);
+			});
+		}
+	}, []);
+
+	const wireListener = useCallback(async () => {
+		if (unlistenRef.current) return;
+		unlistenRef.current = await listenReadinessProgress(handleProgress);
+	}, [handleProgress]);
+
+	const check = useCallback(
+		async (forceFull = false): Promise<ReadinessReport | null> => {
+			setStage((current) => (current === "installing" ? current : "detecting"));
+			setOverallPercent(0);
+			await wireListener();
+			try {
+				const next = await checkSystemReadiness(forceFull);
+				if (!mountedRef.current) return next;
+				setReport(next);
+				setIsInitialCheckComplete(true);
+				setOverallPercent(100);
+
+				const passes = requiredItemsPass(next);
+				if (passes) {
+					setStage(hasAcknowledged ? "ready" : "review");
+				} else if (next.items.some((i) => i.state === "skipped")) {
+					setStage("skipped");
+				} else {
+					setStage("review");
+				}
+				return next;
+			} catch (error) {
+				if (!mountedRef.current) return null;
+				setStage("failed");
+				setReport(
+					(prev) =>
+						prev ?? {
+							generatedAt: new Date().toISOString(),
+							os: "unknown",
+							arch: "unknown",
+							items: [],
+							drift: [],
+						},
+				);
+				console.error("checkSystemReadiness failed", error);
+				return null;
+			}
+		},
+		[hasAcknowledged, wireListener],
+	);
+
+	useEffect(() => {
+		void check(false);
+	}, [check]);
+
+	const install = useCallback(
+		async (id: string): Promise<ReadinessCheck | null> => {
+			await wireListener();
+			setInstallingId(id);
+			setStage("installing");
+			setProgressById((prev) => ({
+				...prev,
+				[id]: {
+					id,
+					percent: 5,
+					message: "Starting…",
+					done: false,
+					error: false,
+				},
+			}));
+			setOverallPercent(5);
+			try {
+				const result = await installReadinessItem(id);
+				if (!mountedRef.current) return result;
+				setReport((prev) => {
+					if (!prev) return prev;
+					return {
+						...prev,
+						items: prev.items.map((item) => (item.id === id ? result : item)),
+					};
+				});
+				setProgressById((prev) => ({
+					...prev,
+					[id]: {
+						id,
+						percent: 100,
+						message: "Installed.",
+						done: true,
+						error: false,
+					},
+				}));
+				setOverallPercent(100);
+
+				const refreshed = await checkSystemReadiness(true);
+				if (!mountedRef.current) return result;
+				setReport(refreshed);
+				const passes = requiredItemsPass(refreshed);
+				if (passes) {
+					setStage(hasAcknowledged ? "ready" : "review");
+				} else {
+					setStage("review");
+				}
+				return result;
+			} catch (error) {
+				if (!mountedRef.current) return null;
+				setProgressById((prev) => ({
+					...prev,
+					[id]: {
+						id,
+						percent: 100,
+						message: error instanceof Error ? error.message : String(error),
+						done: true,
+						error: true,
+					},
+				}));
+				setStage("failed");
+				return null;
+			} finally {
+				if (mountedRef.current) setInstallingId(null);
+			}
+		},
+		[hasAcknowledged, wireListener],
+	);
+
+	const skip = useCallback(
+		async (id: string): Promise<void> => {
+			await skipReadinessItem(id);
+			if (!mountedRef.current) return;
+			setReport((prev) => {
+				if (!prev) return prev;
+				return {
+					...prev,
+					items: prev.items.map((item) =>
+						item.id === id ?
+							{
+								...item,
+								state: "skipped",
+								actionKind: "none",
+							}
+						:	item,
+					),
+				};
+			});
+			const passes = requiredItemsPass(
+				report ?
+					{
+						...report,
+						items: report.items.map((item) =>
+							item.id === id ?
+								{ ...item, state: "skipped", actionKind: "none" }
+							:	item,
+						),
+					}
+				:	null,
+			);
+			if (passes) {
+				setStage("ready");
+			} else {
+				setStage("skipped");
+			}
+		},
+		[report],
+	);
+
+	const resetSkips = useCallback(async (): Promise<void> => {
+		await resetReadinessSkips();
+		if (!mountedRef.current) return;
+		await check(true);
+	}, [check]);
+
+	const enterApp = useCallback(() => {
+		writeCompletedFlag(true);
+		setHasAcknowledged(true);
+		setStage("ready");
+	}, []);
+
+	const driftIds = useMemo(() => report?.drift ?? [], [report]);
+
+	const hasBlockingItems = useMemo(() => {
+		if (!report) return false;
+		return report.items.some(
+			(item) =>
+				item.severity === "required" &&
+				(item.state === "missing" ||
+					item.state === "outdated" ||
+					item.state === "failed"),
+		);
+	}, [report]);
+
+	const needsWizard = useMemo(() => {
+		if (!isInitialCheckComplete || !report) return false;
+		if (stage === "ready") return false;
+		return hasBlockingItems || stage === "review" || stage === "skipped";
+	}, [hasBlockingItems, isInitialCheckComplete, report, stage]);
+
+	return {
+		report,
+		stage,
+		overallPercent,
+		progressById,
+		installingId,
+		driftIds,
+		hasBlockingItems,
+		needsWizard,
+		isInitialCheckComplete,
+		check,
+		install,
+		skip,
+		resetSkips,
+		enterApp,
+	};
+}

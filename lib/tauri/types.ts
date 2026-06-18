@@ -25,3 +25,45 @@ export interface TranscriptionProgressEvent {
 	done: boolean;
 	error: boolean;
 }
+
+export type ReadinessState =
+	| "missing"
+	| "installed"
+	| "outdated"
+	| "failed"
+	| "skipped"
+	| "unknown";
+
+export type ReadinessActionKind = "install" | "reinstall" | "update" | "none";
+
+export type ReadinessSeverity = "required" | "recommended" | "optional";
+
+export interface ReadinessCheck {
+	id: string;
+	name: string;
+	description: string;
+	required: string;
+	current: string | null;
+	state: ReadinessState;
+	actionKind: ReadinessActionKind;
+	severity: ReadinessSeverity;
+	manualCommand: string | null;
+	detail: string | null;
+	platformSupported: boolean;
+}
+
+export interface ReadinessReport {
+	generatedAt: string;
+	os: string;
+	arch: string;
+	items: ReadinessCheck[];
+	drift: string[];
+}
+
+export interface ReadinessProgressEvent {
+	id: string;
+	percent: number;
+	message: string;
+	done: boolean;
+	error: boolean;
+}

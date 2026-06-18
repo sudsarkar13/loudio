@@ -6,6 +6,7 @@ import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 
 import type {
+	ReadinessProgressEvent,
 	RuntimeBootstrapProgressEvent,
 	TranscriptionProgressEvent,
 } from "@/lib/tauri/types";
@@ -61,4 +62,13 @@ export async function listenTranscriptionProgress(
 			callback(event.payload);
 		},
 	);
+}
+
+export async function listenReadinessProgress(
+	callback: (payload: ReadinessProgressEvent) => void,
+): Promise<() => void> {
+	if (!isTauriRuntime()) return () => {};
+	return listen<ReadinessProgressEvent>("readiness-progress", (event) => {
+		callback(event.payload);
+	});
 }
