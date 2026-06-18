@@ -27,6 +27,7 @@ import { SystemReadinessWizard } from "@/components/transcription-studio/compone
 import { ReadinessDriftBanner } from "@/components/transcription-studio/components/SystemReadinessWizard/ReadinessDriftBanner";
 import { WorkspaceActivityView } from "@/components/transcription-studio/components/WorkspaceActivityView";
 import { AboutPanel } from "@/components/transcription-studio/components/AboutPanel";
+import { isTauriRuntime } from "@/lib/tauri";
 
 export function TranscriptionStudio() {
 	const {
@@ -56,8 +57,14 @@ export function TranscriptionStudio() {
 		check: recheckReadiness,
 	} = useSystemReadinessWizard();
 
-	const hasAcceptedEula = !needsWizard;
-	const isCheckingEula = !readinessReport;
+	const isTauri = isTauriRuntime();
+
+	// In a web preview (no Tauri runtime) we never gate the UI on the readiness
+	// wizard — there is no native runtime to bootstrap and no recordings on disk
+	// to list. The wizard itself is also hidden in this mode so the preview is
+	// fully usable without a "Loudio" desktop build.
+	const hasAcceptedEula = !isTauri || !needsWizard;
+	const isCheckingEula = !isTauri || !readinessReport;
 
 	const {
 		profiles,
@@ -289,7 +296,9 @@ export function TranscriptionStudio() {
 			className={
 				isCompactMode ? "loudio-shell loudio-shell-compact" : "loudio-shell"
 			}>
-			<SystemReadinessWizard open={!isCheckingEula && !hasAcceptedEula} />
+			<SystemReadinessWizard
+				open={isTauriRuntime() && !isCheckingEula && !hasAcceptedEula}
+			/>
 
 			{isCompactMode ?
 				<CompactShell
@@ -434,6 +443,7 @@ export function TranscriptionStudio() {
 									currentRecordingsOutputDir={currentRecordingsOutputDir}
 									revealRecordingsOutputDir={revealRecordingsOutputDirInFinder}
 									onMigrateLegacyRecordings={migrateLegacyRecordingDirs}
+									isTauri={isTauri}
 								/>
 							}
 						</section>

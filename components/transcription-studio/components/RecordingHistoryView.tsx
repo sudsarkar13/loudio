@@ -2,6 +2,7 @@ import {
 	ArrowRightLeft,
 	FolderOpen,
 	HardDrive,
+	Info,
 	Pause,
 	Play,
 	ExternalLink,
@@ -31,6 +32,7 @@ interface RecordingHistoryViewProps {
 	isMigratingLegacyRecordings: boolean;
 	currentRecordingsOutputDir: string;
 	revealRecordingsOutputDir: () => Promise<void>;
+	isTauri: boolean;
 	formatRecordingSize: (bytes: number) => string;
 	formatRecordingDate: (isoDate: string) => string;
 	formatPlaybackTime: (seconds: number) => string;
@@ -89,6 +91,7 @@ export function RecordingHistoryView({
 	currentRecordingsOutputDir,
 	revealRecordingsOutputDir,
 	onMigrateLegacyRecordings,
+	isTauri,
 }: RecordingHistoryViewProps) {
 	return (
 		<>
@@ -298,7 +301,23 @@ export function RecordingHistoryView({
 				</div>
 			:	null}
 
-			{isLoadingRecordingHistory ?
+			{!isTauri ?
+				<div className="history-empty history-empty-info">
+					<div className="history-empty-info-row">
+						<Info size={16} />
+						<div>
+							<p className="history-empty-title">
+								Recording history is desktop-only.
+							</p>
+							<p className="history-empty-hint">
+								Microphone recordings are stored in the Loudio desktop app's
+								local app data folder. Launch the desktop build with{" "}
+								<code>yarn tauri:dev</code> to see and manage them here.
+							</p>
+						</div>
+					</div>
+				</div>
+			: isLoadingRecordingHistory ?
 				<div className="history-empty">Fetching recordings…</div>
 			: recordingHistory.length === 0 ?
 				<div className="history-empty">
@@ -307,11 +326,10 @@ export function RecordingHistoryView({
 					</p>
 					{currentRecordingsOutputDir ?
 						<p className="history-empty-hint">
-							Recordings will appear here once you stop a microphone
-							recording. Stored in{" "}
-							<code>{currentRecordingsOutputDir}</code>.
+							Recordings will appear here once you stop a microphone recording.
+							Stored in <code>{currentRecordingsOutputDir}</code>.
 						</p>
-					: null}
+					:	null}
 				</div>
 			:	<div
 					className="history-list"

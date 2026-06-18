@@ -716,6 +716,28 @@ summary:focus-visible {
 	font-size: 0.74rem;
 }
 
+.history-empty-info {
+	background: rgba(47, 129, 247, 0.06);
+	border-color: rgba(47, 129, 247, 0.3);
+	color: var(--text);
+}
+
+.history-empty-info-row {
+	display: flex;
+	align-items: flex-start;
+	gap: 0.6rem;
+	color: #6aa6ff;
+}
+
+.history-empty-info-row > svg {
+	margin-top: 0.15rem;
+	flex-shrink: 0;
+}
+
+.history-empty-info-row .history-empty-title {
+	color: var(--text);
+}
+
 .history-legacy-banner {
 	display: flex;
 	align-items: center;

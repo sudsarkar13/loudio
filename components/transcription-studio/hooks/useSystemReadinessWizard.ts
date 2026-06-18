@@ -5,6 +5,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
 	checkSystemReadiness,
 	installReadinessItem,
+	isTauriRuntime,
 	listenReadinessProgress,
 	resetReadinessSkips,
 	skipReadinessItem,
@@ -111,6 +112,25 @@ export function useSystemReadinessWizard(): UseSystemReadinessWizardResult {
 
 	const check = useCallback(
 		async (forceFull = false): Promise<ReadinessReport | null> => {
+			// In a web preview there is no native runtime to bootstrap, so the
+			// readiness wizard must never gate the UI. Skip the Tauri command
+			// and leave the hook in an "already ready" state so `needsWizard`
+			// stays false.
+			if (!isTauriRuntime()) {
+				const webPreviewReport: ReadinessReport = {
+					generatedAt: new Date().toISOString(),
+					os: "web",
+					arch: "unknown",
+					items: [],
+					drift: [],
+				};
+				setReport(webPreviewReport);
+				setIsInitialCheckComplete(true);
+				setOverallPercent(100);
+				setStage("ready");
+				return webPreviewReport;
+			}
+
 			setStage((current) => (current === "installing" ? current : "detecting"));
 			setOverallPercent(0);
 			await wireListener();
