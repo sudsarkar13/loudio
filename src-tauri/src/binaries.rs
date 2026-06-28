@@ -208,8 +208,11 @@ pub async fn detect_whisper_cli(manual_engine_path: Option<&str>) -> Option<Stri
 
     for candidate in [
         "whisper-cli",
+        "whisper-cpp.cli",
         "/opt/homebrew/bin/whisper-cli",
         "/usr/local/bin/whisper-cli",
+        "/snap/bin/whisper-cli",
+        "/snap/bin/whisper-cpp.cli",
     ] {
         let ok = tokio::process::Command::new(candidate)
             .arg("-h")

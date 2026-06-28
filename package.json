@@ -1,36 +1,36 @@
 {
-  "name": "loudio",
-  "version": "0.1.0",
-  "private": true,
-  "type": "module",
-  "scripts": {
-    "dev": "next dev -p 3000",
-    "build": "next build",
-    "start": "next start -p 3000",
-    "lint": "tsc --noEmit",
-    "typecheck": "tsc --noEmit",
-    "tauri": "tauri",
-    "tauri:dev": "tauri dev",
-    "tauri:build": "tauri build",
-    "tauri:build:deb": "tauri build --bundles deb"
-  },
-  "dependencies": {
-    "@tauri-apps/api": "2.10.1",
-    "@tauri-apps/plugin-clipboard-manager": "2.3.2",
-    "@tauri-apps/plugin-dialog": "2.6.0",
-    "@tauri-apps/plugin-fs": "2.4.5",
-    "clsx": "2.1.1",
-    "lucide-react": "0.577.0",
-    "next": "^16.2.9",
-    "react": "19.2.4",
-    "react-dom": "19.2.4"
-  },
-  "devDependencies": {
-    "@tauri-apps/cli": "2.10.1",
-    "@types/node": "25.5.2",
-    "@types/react": "19.2.14",
-    "@types/react-dom": "19.2.3",
-    "typescript": "5.9.3"
-  },
-  "packageManager": "yarn@4.17.0"
+	"name": "loudio",
+	"version": "1.0.0",
+	"private": true,
+	"type": "module",
+	"scripts": {
+		"dev": "next dev -p 3000",
+		"build": "next build",
+		"start": "next start -p 3000",
+		"lint": "tsc --noEmit",
+		"typecheck": "tsc --noEmit",
+		"tauri": "tauri",
+		"tauri:dev": "tauri dev",
+		"tauri:build": "tauri build",
+		"tauri:build:deb": "tauri build --bundles deb"
+	},
+	"dependencies": {
+		"@tauri-apps/api": "2.10.1",
+		"@tauri-apps/plugin-clipboard-manager": "2.3.2",
+		"@tauri-apps/plugin-dialog": "2.6.0",
+		"@tauri-apps/plugin-fs": "2.4.5",
+		"clsx": "2.1.1",
+		"lucide-react": "0.577.0",
+		"next": "^16.2.9",
+		"react": "19.2.4",
+		"react-dom": "19.2.4"
+	},
+	"devDependencies": {
+		"@tauri-apps/cli": "2.10.1",
+		"@types/node": "25.5.2",
+		"@types/react": "19.2.14",
+		"@types/react-dom": "19.2.3",
+		"typescript": "5.9.3"
+	},
+	"packageManager": "yarn@4.17.0"
 }

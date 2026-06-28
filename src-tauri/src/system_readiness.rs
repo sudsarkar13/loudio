@@ -440,7 +440,7 @@ pub fn manual_command_for(id: &str, action: &str) -> String {
         },
         ("whisper-cpp", "install") => match os {
             "macos" => "brew install whisper-cpp".to_string(),
-            "linux" => "sudo apt-get install -y whisper-cpp".to_string(),
+            "linux" => "sudo apt-get update && sudo apt-get install -y snapd && sudo snap install whisper-cpp && sudo snap alias whisper-cpp.cli whisper-cli".to_string(),
             "windows" => "winget install -e --id ggml.whisper-cpp".to_string(),
             _ => "Install whisper.cpp from https://github.com/ggerganov/whisper.cpp".to_string(),
         },
@@ -729,14 +729,33 @@ async fn install_whisper_cpp(app: &AppHandle) -> Result<ReadinessCheck> {
             ensure_linux_privilege_app(
                 app,
                 "whisper-cpp",
-                "apt-get install -y whisper-cpp",
+                "apt-get update && sudo apt-get install -y snapd && sudo snap install whisper-cpp && sudo snap alias whisper-cpp.cli whisper-cli",
             )
             .await?;
             emit_progress(
                 app,
                 "whisper-cpp",
-                60,
-                "Running: sudo apt-get install -y whisper-cpp",
+                55,
+                "Running: sudo apt-get update",
+                false,
+                false,
+            );
+            let sudo_result = run_command(
+                "sudo",
+                &["-n".into(), "apt-get".into(), "update".into()],
+            )
+            .await;
+            if sudo_result.is_err() {
+                run_command("apt-get", &["update".into()])
+                    .await
+                    .context("apt-get update failed")?;
+            }
+
+            emit_progress(
+                app,
+                "whisper-cpp",
+                65,
+                "Running: sudo apt-get install -y snapd",
                 false,
                 false,
             );
@@ -747,17 +766,73 @@ async fn install_whisper_cpp(app: &AppHandle) -> Result<ReadinessCheck> {
                     "apt-get".into(),
                     "install".into(),
                     "-y".into(),
+                    "snapd".into(),
+                ],
+            )
+            .await;
+            if sudo_result.is_err() {
+                run_command("apt-get", &["install".into(), "-y".into(), "snapd".into()])
+                    .await
+                    .context("apt-get install snapd failed")?;
+            }
+
+            emit_progress(
+                app,
+                "whisper-cpp",
+                78,
+                "Running: sudo snap install whisper-cpp",
+                false,
+                false,
+            );
+            let sudo_result = run_command(
+                "sudo",
+                &[
+                    "-n".into(),
+                    "snap".into(),
+                    "install".into(),
                     "whisper-cpp".into(),
                 ],
             )
             .await;
             if sudo_result.is_err() {
-                run_command(
-                    "apt-get",
-                    &["install".into(), "-y".into(), "whisper-cpp".into()],
+                run_command("snap", &["install".into(), "whisper-cpp".into()])
+                    .await
+                    .context("snap install whisper-cpp failed")?;
+            }
+
+            emit_progress(
+                app,
+                "whisper-cpp",
+                88,
+                "Running: sudo snap alias whisper-cpp.cli whisper-cli",
+                false,
+                false,
+            );
+            let sudo_result = run_command(
+                "sudo",
+                &[
+                    "-n".into(),
+                    "snap".into(),
+                    "alias".into(),
+                    "whisper-cpp.cli".into(),
+                    "whisper-cli".into(),
+                ],
+            )
+            .await;
+            if sudo_result.is_err() {
+                let alias_result = run_command(
+                    "snap",
+                    &[
+                        "alias".into(),
+                        "whisper-cpp.cli".into(),
+                        "whisper-cli".into(),
+                    ],
                 )
-                .await
-                .context("apt-get install whisper-cpp failed")?;
+                .await;
+
+                if alias_result.is_err() && detect_whisper_cli(None).await.is_none() {
+                    alias_result.context("snap alias whisper-cpp.cli whisper-cli failed")?;
+                }
             }
         }
         "windows" => {
