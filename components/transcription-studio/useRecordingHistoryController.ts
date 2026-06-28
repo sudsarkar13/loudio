@@ -130,7 +130,7 @@ export function useRecordingHistoryController({
 		[legacyDirs],
 	);
 
-	async function refreshRecordingsDiskUsage(): Promise<void> {
+	const refreshRecordingsDiskUsage = useCallback(async (): Promise<void> => {
 		try {
 			const bytes = await getRecordingsDiskUsage();
 			setRecordingsDiskUsageBytes(Number.isFinite(bytes) ? bytes : 0);
@@ -138,9 +138,9 @@ export function useRecordingHistoryController({
 			// Non-fatal: storage usage is a soft indicator.
 			setRecordingsDiskUsageBytes(0);
 		}
-	}
+	}, []);
 
-	async function refreshLegacyRecordingDirs(): Promise<void> {
+	const refreshLegacyRecordingDirs = useCallback(async (): Promise<void> => {
 		try {
 			const [dirs, currentDir] = await Promise.all([
 				listLegacyRecordingDirs(),
@@ -152,7 +152,7 @@ export function useRecordingHistoryController({
 			console.warn("Failed to list legacy recording dirs", error);
 			setLegacyDirs([]);
 		}
-	}
+	}, []);
 
 	async function migrateLegacyRecordingDirs(): Promise<void> {
 		setIsMigratingLegacyRecordings(true);
@@ -179,41 +179,42 @@ export function useRecordingHistoryController({
 		}
 	}
 
-	async function loadRecordingHistory(
-		options?: LoadRecordingHistoryOptions,
-	): Promise<void> {
-		const silent: boolean = options?.silent ?? false;
-		const statusMessage: string | undefined = options?.statusMessage;
+	const loadRecordingHistory = useCallback(
+		async (options?: LoadRecordingHistoryOptions): Promise<void> => {
+			const silent: boolean = options?.silent ?? false;
+			const statusMessage: string | undefined = options?.statusMessage;
 
-		if (!silent) {
-			setIsLoadingRecordingHistory(true);
-		}
-
-		try {
-			const items: RecordingHistoryItem[] =
-				await listMicrophoneRecordingHistory();
-			setRecordingHistory(items);
-			setSelectedRecordingPaths((prev: string[]) => {
-				const available: Set<string> = new Set(
-					items.map((item) => item.absolutePath),
-				);
-				return prev.filter((path) => available.has(path));
-			});
-
-			void refreshRecordingsDiskUsage();
-			void refreshLegacyRecordingDirs();
-
-			if (statusMessage) {
-				setStatus(statusMessage);
-			}
-		} catch (error) {
-			setStatus(`Failed to load recording history: ${String(error)}`);
-		} finally {
 			if (!silent) {
-				setIsLoadingRecordingHistory(false);
+				setIsLoadingRecordingHistory(true);
 			}
-		}
-	}
+
+			try {
+				const items: RecordingHistoryItem[] =
+					await listMicrophoneRecordingHistory();
+				setRecordingHistory(items);
+				setSelectedRecordingPaths((prev: string[]) => {
+					const available: Set<string> = new Set(
+						items.map((item) => item.absolutePath),
+					);
+					return prev.filter((path) => available.has(path));
+				});
+
+				void refreshRecordingsDiskUsage();
+				void refreshLegacyRecordingDirs();
+
+				if (statusMessage) {
+					setStatus(statusMessage);
+				}
+			} catch (error) {
+				setStatus(`Failed to load recording history: ${String(error)}`);
+			} finally {
+				if (!silent) {
+					setIsLoadingRecordingHistory(false);
+				}
+			}
+		},
+		[refreshRecordingsDiskUsage, refreshLegacyRecordingDirs, setStatus],
+	);
 
 	async function onDeleteRecording(path: string): Promise<void> {
 		setDeletingRecordingPath(path);
