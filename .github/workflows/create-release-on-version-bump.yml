@@ -156,13 +156,19 @@ jobs:
           fi
 
       - name: Check whether release already exists for tag
-        if: steps.bump.outputs.changed == 'true'
         id: release_check
         env:
           GH_TOKEN: ${{ github.token }}
           REPO: ${{ github.repository }}
           TAG: ${{ steps.current.outputs.tag }}
+          BUMPED: ${{ steps.bump.outputs.changed }}
         run: |
+          # If version did not bump, just record that we should not proceed
+          if [ "$BUMPED" != "true" ]; then
+            echo "exists=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
           STATUS=$(curl -s -o /dev/null -w "%{http_code}" \
             -H "Authorization: Bearer $GH_TOKEN" \
             -H "Accept: application/vnd.github+json" \
@@ -173,11 +179,6 @@ jobs:
           else
             echo "exists=false" >> "$GITHUB_OUTPUT"
           fi
-
-      - name: Default release-exists output when no bump
-        if: steps.bump.outputs.changed != 'true'
-        id: release_check_default
-        run: echo "exists=true" >> "$GITHUB_OUTPUT"
 
       - name: Check whether remote tag already exists
         if: steps.bump.outputs.changed == 'true' && steps.release_check.outputs.exists == 'false'
