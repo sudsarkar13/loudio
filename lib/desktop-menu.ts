@@ -167,8 +167,8 @@ export async function setupDesktopAppMenu(
 				item: {
 					About: {
 						name: "Loudio",
-						version: "1.0.0",
-						shortVersion: "1.0",
+						version: "0.1.0",
+						shortVersion: "0.1.0",
 						copyright: "© Sudeepta Sarkar",
 						credits: "Developed by Sudeepta Sarkar",
 						icon: aboutIcon,

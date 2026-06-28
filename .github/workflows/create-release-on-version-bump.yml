@@ -343,7 +343,8 @@ jobs:
         env:
           EXPECTED_VERSION: ${{ needs.prepare-release.outputs.version }}
         run: |
-          mapfile -t FILES < <(ls src-tauri/target/release/bundle/deb/*.deb)
+          shopt -s nullglob
+          FILES=(src-tauri/target/release/bundle/deb/*.deb)
           if [ "${#FILES[@]}" -eq 0 ]; then
             echo "No .deb files generated"
             exit 1
@@ -510,7 +511,8 @@ jobs:
         env:
           EXPECTED_VERSION: ${{ needs.prepare-release.outputs.version }}
         run: |
-          mapfile -t FILES < <(ls src-tauri/target/release/bundle/dmg/*.dmg)
+          shopt -s nullglob
+          FILES=(src-tauri/target/release/bundle/dmg/*.dmg)
           if [ "${#FILES[@]}" -eq 0 ]; then
             echo "No .dmg files generated"
             exit 1
