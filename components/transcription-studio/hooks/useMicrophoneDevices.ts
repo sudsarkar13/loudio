@@ -118,7 +118,19 @@ export function useMicrophoneDevices(): UseMicrophoneDevicesResult {
 		}
 
 		try {
-			const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+			// Explicit audio constraints help the underlying webview (notably
+			// WebKitGTK on Linux/Ubuntu) request microphone-only access from
+			// the xdg-desktop-portal. Without them, the portal sometimes
+			// surfaces a camera permission prompt even though no video is
+			// requested.
+			const stream = await navigator.mediaDevices.getUserMedia({
+				audio: {
+					echoCancellation: { ideal: true },
+					noiseSuppression: { ideal: true },
+					autoGainControl: { ideal: true },
+				},
+				video: false,
+			});
 			stream.getTracks().forEach((track) => track.stop());
 			setHasPermission(true);
 			setErrorMessage("");

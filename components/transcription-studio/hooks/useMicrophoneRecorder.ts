@@ -82,10 +82,22 @@ export function useMicrophoneRecorder({
 
 		try {
 			const trimmedDeviceId = selectedDeviceId.trim();
-			const audioConstraints: MediaTrackConstraints =
+			const deviceConstraint =
 				trimmedDeviceId ? { deviceId: { exact: trimmedDeviceId } } : {};
+			// Explicit audio constraints help the underlying webview (notably
+			// WebKitGTK on Linux/Ubuntu) request microphone-only access from
+			// the xdg-desktop-portal. Without them, the portal sometimes
+			// surfaces a camera permission prompt even though no video is
+			// requested.
+			const audioConstraints: MediaTrackConstraints = {
+				echoCancellation: { ideal: true },
+				noiseSuppression: { ideal: true },
+				autoGainControl: { ideal: true },
+				...deviceConstraint,
+			};
 			const stream = await navigator.mediaDevices.getUserMedia({
 				audio: audioConstraints,
+				video: false,
 			});
 			mediaStreamRef.current = stream;
 			setMicBlob(null);

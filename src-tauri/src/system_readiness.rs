@@ -137,6 +137,26 @@ fn emit_progress(app: &AppHandle, id: &str, percent: u8, message: &str, done: bo
     );
 }
 
+/// Runs a per-check detection future and emits a completion progress event so
+/// the wizard UI can settle the progress bar instead of getting stuck on the
+/// initial "Detecting …" event.
+async fn run_check<F>(app: &AppHandle, id: &str, fut: F) -> ReadinessCheck
+where
+    F: std::future::Future<Output = ReadinessCheck>,
+{
+    let check = fut.await;
+    let message = match check.state {
+        ReadinessState::Installed => format!("{} ready.", check.name),
+        ReadinessState::Outdated => format!("{} outdated.", check.name),
+        ReadinessState::Missing => format!("{} missing.", check.name),
+        ReadinessState::Failed => format!("{} failed.", check.name),
+        ReadinessState::Skipped => format!("{} skipped.", check.name),
+        ReadinessState::Unknown => format!("{} unknown.", check.name),
+    };
+    emit_progress(app, id, 100, &message, true, false);
+    check
+}
+
 fn parse_ffmpeg_version(stdout: &str) -> Option<String> {
     let first = stdout.lines().next()?;
     let prefix = "ffmpeg version ";
@@ -512,11 +532,12 @@ fn drift_between(
 }
 
 pub async fn build_report(app: &AppHandle) -> ReadinessReport {
-    let ffmpeg = check_ffmpeg(app).await;
-    let whisper_cpp = check_whisper_cpp(app).await;
-    let python = check_python(app).await;
-    let openai_whisper = check_openai_whisper(app).await;
-    let models_dir = check_models_dir(app).await;
+    let ffmpeg = run_check(app, "ffmpeg", check_ffmpeg(app)).await;
+    let whisper_cpp = run_check(app, "whisper-cpp", check_whisper_cpp(app)).await;
+    let python = run_check(app, "python", check_python(app)).await;
+    let openai_whisper =
+        run_check(app, "openai-whisper", check_openai_whisper(app)).await;
+    let models_dir = run_check(app, "models-dir", check_models_dir(app)).await;
 
     let items = vec![ffmpeg, whisper_cpp, python, openai_whisper, models_dir];
 

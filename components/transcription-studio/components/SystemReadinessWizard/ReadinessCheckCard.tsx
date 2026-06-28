@@ -127,7 +127,8 @@ export function ReadinessCheckCard({
 	const [showCommand, setShowCommand] = useState<boolean>(false);
 	const [copied, setCopied] = useState<boolean>(false);
 
-	const manualCommand = check.manualCommand ?? progress?.message ?? "";
+	const manualCommand =
+		check.manualCommand ?? (isInstalling ? (progress?.message ?? "") : "");
 	const showAction =
 		!isInstalling &&
 		(check.state === "missing" ||
