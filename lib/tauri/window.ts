@@ -9,9 +9,9 @@ import type {
 	StoredWindowPosition,
 } from "@/lib/tauri/types";
 
-const COMPACT_WINDOW_WIDTH = 430;
-const COMPACT_WINDOW_HEIGHT = 220;
-const GENERAL_WINDOW_WIDTH = 1200;
+const COMPACT_WINDOW_WIDTH = 360;
+const COMPACT_WINDOW_HEIGHT = 200;
+const GENERAL_WINDOW_WIDTH = 1000;
 const GENERAL_WINDOW_HEIGHT = 820;
 const COMPACT_WINDOW_MARGIN_BOTTOM = 18;
 const COMPACT_WINDOW_POSITION_KEY = "loudio:compact:window-position";
