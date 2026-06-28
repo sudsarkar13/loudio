@@ -54,6 +54,7 @@ export function TranscriptionStudio() {
 		needsWizard,
 		driftIds,
 		check: recheckReadiness,
+		enterApp: enterReadinessApp,
 	} = useSystemReadinessWizard();
 
 	const isTauri = isTauriRuntime();
@@ -96,7 +97,10 @@ export function TranscriptionStudio() {
 		setForceWizard(true);
 		void recheckReadiness(true);
 	}, [recheckReadiness]);
-
+	const onEnterReadinessApp = useCallback(() => {
+		enterReadinessApp();
+		setForceWizard(false);
+	}, [enterReadinessApp]);
 
 	const {
 		devices: microphoneDevices,
@@ -293,7 +297,8 @@ export function TranscriptionStudio() {
 				isCompactMode ? "loudio-shell loudio-shell-compact" : "loudio-shell"
 			}>
 			<SystemReadinessWizard
-				open={isTauriRuntime() && !isCheckingEula && !hasAcceptedEula}
+				open={isTauriRuntime() && !isCheckingEula && showWizard}
+				onEnterApp={onEnterReadinessApp}
 			/>
 
 			{isCompactMode ?

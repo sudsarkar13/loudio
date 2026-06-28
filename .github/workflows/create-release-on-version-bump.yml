@@ -433,14 +433,56 @@ jobs:
         run: yarn test || echo "No tests defined or tests failed — continuing (continue-on-error)"
         continue-on-error: true
 
-      - name: Build macOS dmg bundle
+      - name: Select macOS signing mode
+        id: macos_signing
+        env:
+          APPLE_SIGNING_ENABLED: ${{ secrets.APPLE_SIGNING_ENABLED }}
+          APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
+          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+          APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
+        run: |
+          set -euo pipefail
+
+          if [ "$APPLE_SIGNING_ENABLED" != "true" ]; then
+            echo "enabled=false" >> "$GITHUB_OUTPUT"
+            echo "Building unsigned macOS .dmg — set APPLE_SIGNING_ENABLED=true to opt into Apple signing."
+            exit 0
+          fi
+
+          if [ -z "$APPLE_CERTIFICATE" ] || [ -z "$APPLE_CERTIFICATE_PASSWORD" ] || [ -z "$APPLE_SIGNING_IDENTITY" ]; then
+            echo "::error::APPLE_SIGNING_ENABLED=true requires APPLE_CERTIFICATE, APPLE_CERTIFICATE_PASSWORD, and APPLE_SIGNING_IDENTITY."
+            exit 1
+          fi
+
+          CERT_PATH="$RUNNER_TEMP/apple-signing-certificate.p12"
+          if ! printf '%s' "$APPLE_CERTIFICATE" | base64 -D > "$CERT_PATH" 2>/dev/null; then
+            echo "::error::APPLE_CERTIFICATE must be a base64-encoded .p12 file."
+            exit 1
+          fi
+
+          if ! openssl pkcs12 -in "$CERT_PATH" -nokeys -passin "pass:$APPLE_CERTIFICATE_PASSWORD" -out /dev/null >/dev/null 2>&1; then
+            echo "::error::APPLE_CERTIFICATE could not be opened with APPLE_CERTIFICATE_PASSWORD."
+            exit 1
+          fi
+
+          echo "enabled=true" >> "$GITHUB_OUTPUT"
+
+      - name: Build unsigned macOS dmg bundle
+        if: steps.macos_signing.outputs.enabled != 'true'
+        run: |
+          unset APPLE_CERTIFICATE APPLE_CERTIFICATE_PASSWORD APPLE_SIGNING_IDENTITY
+          yarn tauri build --bundles dmg
+
+      - name: Build signed macOS dmg bundle
+        if: steps.macos_signing.outputs.enabled == 'true'
         env:
           APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
           APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
           APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
         run: yarn tauri build --bundles dmg
 
-      - name: Notarize macOS dmg (gated — runs only when notarization secrets are present)
+      - name: Notarize macOS dmg (gated — runs only when signing and notarization secrets are present)
+        if: steps.macos_signing.outputs.enabled == 'true'
         env:
           APPLE_ID: ${{ secrets.APPLE_ID }}
           APPLE_PASSWORD: ${{ secrets.APPLE_PASSWORD }}

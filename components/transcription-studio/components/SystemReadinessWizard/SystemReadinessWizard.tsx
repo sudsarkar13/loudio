@@ -25,7 +25,15 @@ function osLabel(os: string): string {
 	}
 }
 
-export function SystemReadinessWizard({ open }: { open: boolean }) {
+interface SystemReadinessWizardProps {
+	open: boolean;
+	onEnterApp: () => void;
+}
+
+export function SystemReadinessWizard({
+	open,
+	onEnterApp,
+}: SystemReadinessWizardProps) {
 	const {
 		report,
 		stage,
@@ -67,7 +75,8 @@ export function SystemReadinessWizard({ open }: { open: boolean }) {
 
 	const onEnter = useCallback(() => {
 		enterApp();
-	}, [enterApp]);
+		onEnterApp();
+	}, [enterApp, onEnterApp]);
 
 	const onResetSkips = useCallback(() => {
 		void resetSkips();
