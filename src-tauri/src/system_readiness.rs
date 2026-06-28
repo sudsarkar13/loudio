@@ -932,6 +932,6 @@ pub fn read_full_license() -> String {
 }
 
 #[tauri::command]
-pub fn readiness_manual_command(id: String, action: String) -> String {
+pub fn readiness_manual(id: String, action: String) -> String {
     manual_command_for(&id, &action)
 }

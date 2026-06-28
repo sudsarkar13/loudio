@@ -9,10 +9,6 @@ use crate::{
     },
     paths::{runtime_dir, settings_path},
     process::{emit_transcription_progress, mime_type_to_extension},
-    recordings::{
-        current_recordings_output_dir, delete_microphone_recording, list_legacy_recording_dirs,
-        list_microphone_recordings, migrate_legacy_recordings, reveal_recordings_output_dir,
-    },
     transcription::{transcribe_with_python, transcribe_with_whisper_cpp},
 };
 
@@ -171,49 +167,49 @@ pub async fn transcribe_microphone_audio(
 }
 
 #[tauri::command]
-pub fn list_microphone_recordings_command(
+pub fn list_microphone_recordings(
     app: tauri::AppHandle,
 ) -> Result<Vec<crate::models::RecordingHistoryItem>, String> {
-    list_microphone_recordings(app)
+    crate::recordings::list_microphone_recordings(app)
 }
 
 #[tauri::command]
-pub fn recordings_disk_usage_command(app: tauri::AppHandle) -> Result<u64, String> {
+pub fn recordings_disk_usage(app: tauri::AppHandle) -> Result<u64, String> {
     crate::recordings::recordings_disk_usage(&app)
 }
 
 #[tauri::command]
-pub fn delete_microphone_recording_command(
+pub fn delete_microphone_recording(
     app: tauri::AppHandle,
     absolute_path: String,
 ) -> Result<(), String> {
-    delete_microphone_recording(app, absolute_path)
+    crate::recordings::delete_microphone_recording(app, absolute_path)
 }
 
 #[tauri::command]
-pub fn list_legacy_recording_dirs_command(
+pub fn list_legacy_recording_dirs(
     app: tauri::AppHandle,
 ) -> Result<Vec<crate::models::LegacyRecordingDir>, String> {
-    list_legacy_recording_dirs(&app)
+    crate::recordings::list_legacy_recording_dirs(&app)
 }
 
 #[tauri::command]
-pub fn migrate_legacy_recordings_command(
+pub fn migrate_legacy_recordings(
     app: tauri::AppHandle,
 ) -> Result<crate::models::LegacyMigrationResult, String> {
-    migrate_legacy_recordings(&app)
+    crate::recordings::migrate_legacy_recordings(&app)
 }
 
 #[tauri::command]
-pub fn current_recordings_output_dir_command(
+pub fn current_recordings_output_dir(
     app: tauri::AppHandle,
 ) -> Result<String, String> {
-    current_recordings_output_dir(&app)
+    crate::recordings::current_recordings_output_dir(&app)
 }
 
 #[tauri::command]
-pub fn reveal_recordings_output_dir_command(
+pub fn reveal_recordings_output_dir(
     app: tauri::AppHandle,
 ) -> Result<(), String> {
-    reveal_recordings_output_dir(&app)
+    crate::recordings::reveal_recordings_output_dir(&app)
 }

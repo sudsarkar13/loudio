@@ -94,7 +94,7 @@ export async function readinessManualCommand(
 	if (!isTauriRuntime()) {
 		return "";
 	}
-	return invokeCommand<string>("readiness_manual_command", { id, action });
+	return invokeCommand<string>("readiness_manual", { id, action });
 }
 
 export async function chooseAudioFile(): Promise<string | null> {
