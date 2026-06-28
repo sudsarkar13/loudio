@@ -3,6 +3,14 @@ import {
 	encodeWav,
 	resolvePreferredMicMimeType,
 } from "@/components/transcription-studio/utils/audio";
+import { isTauriRuntime } from "@/lib/tauri/runtime";
+
+function shouldUseMediaRecorder(): boolean {
+	if (typeof MediaRecorder === "undefined") return false;
+
+	const userAgent = navigator.userAgent.toLowerCase();
+	return !(isTauriRuntime() && userAgent.includes("linux"));
+}
 
 export interface UseMicrophoneRecorderResult {
 	isRecording: boolean;
@@ -103,7 +111,7 @@ export function useMicrophoneRecorder({
 			setMicBlob(null);
 			setMicMimeType("");
 
-			if (typeof MediaRecorder !== "undefined") {
+			if (shouldUseMediaRecorder()) {
 				const preferredMimeType = resolvePreferredMicMimeType();
 				const recorder =
 					preferredMimeType ?
