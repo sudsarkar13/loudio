@@ -90,29 +90,82 @@ pub struct RecordingHistoryItem {
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct LegacyRecordingDir {
-	pub bundle_id: String,
-	pub absolute_path: String,
-	pub file_count: usize,
-	pub size_bytes: u64,
+    pub bundle_id: String,
+    pub absolute_path: String,
+    pub file_count: usize,
+    pub size_bytes: u64,
 }
 
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct LegacyMigrationResult {
-	pub migrated_files: usize,
-	pub migrated_bytes: u64,
-	pub skipped_files: usize,
-	pub sources: Vec<String>,
-	pub errors: Vec<String>,
+    pub migrated_files: usize,
+    pub migrated_bytes: u64,
+    pub skipped_files: usize,
+    pub sources: Vec<String>,
+    pub errors: Vec<String>,
+}
+
+fn apple_silicon_generation() -> Option<&'static str> {
+    if !cfg!(target_os = "macos") || !cfg!(target_arch = "aarch64") {
+        return None;
+    }
+
+    let output = std::process::Command::new("sysctl")
+        .args(["-n", "machdep.cpu.brand_string"])
+        .output()
+        .ok()?;
+    let brand = String::from_utf8_lossy(&output.stdout).to_uppercase();
+
+    ["M4", "M3", "M2", "M1"]
+        .into_iter()
+        .find(|generation| brand.contains(generation))
+}
+
+fn recommended_runtime_title() -> String {
+    if let Some(generation) = apple_silicon_generation() {
+        return format!("Recommended ({generation} Fast Local)");
+    }
+
+    if cfg!(target_arch = "x86_64") {
+        if cfg!(target_os = "linux") {
+            "Recommended (Linux x86_64 Local)".into()
+        } else if cfg!(target_os = "windows") {
+            "Recommended (Windows x86_64 Local)".into()
+        } else if cfg!(target_os = "macos") {
+            "Recommended (Intel Mac Local)".into()
+        } else {
+            "Recommended (x86_64 Local)".into()
+        }
+    } else if cfg!(target_arch = "aarch64") {
+        "Recommended (ARM64 Local)".into()
+    } else {
+        "Recommended (Local)".into()
+    }
+}
+
+fn recommended_runtime_description() -> String {
+    if apple_silicon_generation().is_some() {
+        "whisper.cpp with Metal acceleration. Best speed + offline reliability on Apple Silicon."
+            .into()
+    } else if cfg!(target_os = "linux") {
+        "whisper.cpp local runtime tuned for this Linux processor. Offline transcription without Mac-specific assumptions."
+            .into()
+    } else if cfg!(target_os = "windows") {
+        "whisper.cpp local runtime tuned for this Windows processor. Offline transcription without Mac-specific assumptions."
+            .into()
+    } else {
+        "whisper.cpp local runtime tuned for this processor. Offline transcription without Mac-specific assumptions."
+            .into()
+    }
 }
 
 pub fn runtime_profiles() -> Vec<RuntimeProfile> {
     vec![
         RuntimeProfile {
-            id: "recommended-m1".into(),
-            title: "Recommended (M1 Fast Local)".into(),
-            description: "whisper.cpp with Metal acceleration. Best speed + offline reliability on Apple Silicon."
-                .into(),
+            id: "recommended-local".into(),
+            title: recommended_runtime_title(),
+            description: recommended_runtime_description(),
             engine: Engine::WhisperCpp,
             model: "small".into(),
             recommended: true,
@@ -120,7 +173,8 @@ pub fn runtime_profiles() -> Vec<RuntimeProfile> {
         RuntimeProfile {
             id: "high-accuracy".into(),
             title: "High Accuracy (Local)".into(),
-            description: "whisper.cpp with medium model for better accuracy on difficult audio.".into(),
+            description: "whisper.cpp with medium model for better accuracy on difficult audio."
+                .into(),
             engine: Engine::WhisperCpp,
             model: "medium".into(),
             recommended: false,
@@ -128,8 +182,9 @@ pub fn runtime_profiles() -> Vec<RuntimeProfile> {
         RuntimeProfile {
             id: "python-whisper".into(),
             title: "Python Whisper Compatibility".into(),
-            description: "OpenAI Whisper Python runtime for compatibility with existing whisper CLI flows."
-                .into(),
+            description:
+                "OpenAI Whisper Python runtime for compatibility with existing whisper CLI flows."
+                    .into(),
             engine: Engine::OpenaiWhisper,
             model: "small".into(),
             recommended: false,

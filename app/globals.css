@@ -203,10 +203,33 @@ textarea {
 	border-radius: 8px;
 	background: #0f1622;
 	color: var(--text);
+	color-scheme: dark;
 	padding: 0.48rem 0.58rem;
 	transition:
 		border-color 120ms ease,
 		box-shadow 120ms ease;
+}
+
+.select {
+	background-color: #0f1622;
+}
+
+.select option,
+.select optgroup {
+	background-color: #0f1622;
+	color: var(--text);
+}
+
+.select option:checked,
+.select option:hover {
+	background-color: #1f3a57;
+	color: #ffffff;
+}
+
+.select:disabled {
+	color: var(--text-muted);
+	-webkit-text-fill-color: var(--text-muted);
+	opacity: 0.72;
 }
 
 .field:hover,

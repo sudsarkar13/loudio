@@ -19,7 +19,11 @@ pub async fn run_command(bin: &str, args: &[String]) -> Result<(String, String)>
             "Command failed: {} {}\n{}",
             bin,
             args.join(" "),
-            if stderr.trim().is_empty() { stdout.clone() } else { stderr.clone() }
+            if stderr.trim().is_empty() {
+                stdout.clone()
+            } else {
+                stderr.clone()
+            }
         ));
     }
 

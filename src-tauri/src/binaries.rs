@@ -40,16 +40,13 @@ pub async fn ensure_homebrew_available() -> Result<String> {
     let install_script =
         "NONINTERACTIVE=1 CI=1 /bin/bash -c \"$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)\"";
 
-    run_command(
-        "/bin/bash",
-        &["-c".into(), install_script.into()],
-    )
-    .await
-    .context("Failed to run Homebrew installer")?;
+    run_command("/bin/bash", &["-c".into(), install_script.into()])
+        .await
+        .context("Failed to run Homebrew installer")?;
 
-    detect_brew_bin().await.ok_or_else(|| {
-        anyhow!("Homebrew installer finished but brew is still not discoverable")
-    })
+    detect_brew_bin()
+        .await
+        .ok_or_else(|| anyhow!("Homebrew installer finished but brew is still not discoverable"))
 }
 
 pub async fn detect_ffmpeg_bin() -> Option<String> {
@@ -127,9 +124,7 @@ pub fn venv_python_path(venv_dir: &PathBuf) -> PathBuf {
     venv_dir.join("bin").join("python3")
 }
 
-pub async fn ensure_python_whisper_runtime(
-    app: &tauri::AppHandle,
-) -> Result<String> {
+pub async fn ensure_python_whisper_runtime(app: &tauri::AppHandle) -> Result<String> {
     if let Some(system_python) = detect_python_with_whisper().await {
         return Ok(system_python);
     }
@@ -176,11 +171,8 @@ pub async fn ensure_python_whisper_runtime(
     .await
     .context("Failed to install openai-whisper in app-local virtual environment")?;
 
-    let ready = command_available(
-        &venv_python.to_string_lossy(),
-        &["-m", "whisper", "--help"],
-    )
-    .await;
+    let ready =
+        command_available(&venv_python.to_string_lossy(), &["-m", "whisper", "--help"]).await;
 
     if !ready {
         return Err(anyhow!(

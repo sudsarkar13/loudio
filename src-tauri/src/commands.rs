@@ -42,13 +42,7 @@ pub async fn transcribe_audio(
     app: tauri::AppHandle,
     request: TranscriptionRequest,
 ) -> Result<TranscriptionResponse, String> {
-    emit_transcription_progress(
-        &app,
-        None,
-        "Transcription started…",
-        false,
-        false,
-    );
+    emit_transcription_progress(&app, None, "Transcription started…", false, false);
 
     let profile = runtime_profiles()
         .into_iter()
@@ -123,16 +117,9 @@ pub async fn transcribe_microphone_audio(
         .join("output")
         .join(format!("mic-{}.{}", Uuid::new_v4(), extension));
 
-    fs::write(&input_path, bytes)
-        .map_err(|e| format!("Failed to save microphone audio: {e}"))?;
+    fs::write(&input_path, bytes).map_err(|e| format!("Failed to save microphone audio: {e}"))?;
 
-    emit_transcription_progress(
-        &app,
-        None,
-        "Preparing microphone audio…",
-        false,
-        false,
-    );
+    emit_transcription_progress(&app, None, "Preparing microphone audio…", false, false);
 
     let prepared_path = if extension == "wav" {
         input_path
@@ -201,15 +188,11 @@ pub fn migrate_legacy_recordings(
 }
 
 #[tauri::command]
-pub fn current_recordings_output_dir(
-    app: tauri::AppHandle,
-) -> Result<String, String> {
+pub fn current_recordings_output_dir(app: tauri::AppHandle) -> Result<String, String> {
     crate::recordings::current_recordings_output_dir(&app)
 }
 
 #[tauri::command]
-pub fn reveal_recordings_output_dir(
-    app: tauri::AppHandle,
-) -> Result<(), String> {
+pub fn reveal_recordings_output_dir(app: tauri::AppHandle) -> Result<(), String> {
     crate::recordings::reveal_recordings_output_dir(&app)
 }

@@ -23,10 +23,7 @@ pub fn model_name(settings: &AppSettings, profile: &RuntimeProfile) -> String {
     custom.unwrap_or(&profile.model).to_string()
 }
 
-pub async fn ensure_ggml_model(
-    app: &tauri::AppHandle,
-    model: &str,
-) -> Result<std::path::PathBuf> {
+pub async fn ensure_ggml_model(app: &tauri::AppHandle, model: &str) -> Result<std::path::PathBuf> {
     let model_path = runtime_dir(app)?
         .join("models")
         .join(format!("ggml-{model}.bin"));
@@ -35,9 +32,7 @@ pub async fn ensure_ggml_model(
         return Ok(model_path);
     }
 
-    let url = format!(
-        "https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-{model}.bin"
-    );
+    let url = format!("https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-{model}.bin");
 
     run_command(
         "curl",

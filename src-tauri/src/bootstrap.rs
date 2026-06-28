@@ -123,9 +123,7 @@ pub async fn bootstrap_runtime(app: AppHandle) -> Result<String, String> {
     match ensure_python_whisper_runtime(&app).await {
         Ok(python_bin) => {
             if python_bin.contains("python-venv") {
-                messages.push(
-                    "OpenAI Whisper installed in app-local virtual environment.".into(),
-                );
+                messages.push("OpenAI Whisper installed in app-local virtual environment.".into());
                 emit_runtime_bootstrap_progress(
                     &app,
                     95,

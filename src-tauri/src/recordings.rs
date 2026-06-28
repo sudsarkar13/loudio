@@ -206,8 +206,7 @@ fn platform_app_support_root() -> Option<PathBuf> {
         if let Some(xdg) = std::env::var_os("XDG_DATA_HOME") {
             Some(PathBuf::from(xdg))
         } else {
-            std::env::var_os("HOME")
-                .map(|home| PathBuf::from(home).join(".local").join("share"))
+            std::env::var_os("HOME").map(|home| PathBuf::from(home).join(".local").join("share"))
         }
     }
     #[cfg(target_os = "windows")]
@@ -381,9 +380,7 @@ fn scan_dir_stats(dir: &std::path::Path) -> (usize, u64) {
 /// * If a target file already exists with the same name, the legacy file is
 ///   skipped (we never overwrite) and the skip count is bumped.
 /// * On any per-file I/O error we record the error message and keep going.
-pub fn migrate_legacy_recordings(
-    app: &tauri::AppHandle,
-) -> Result<LegacyMigrationResult, String> {
+pub fn migrate_legacy_recordings(app: &tauri::AppHandle) -> Result<LegacyMigrationResult, String> {
     let target_dir = recordings_output_dir(app).map_err(|e| e.to_string())?;
     let legacy_dirs = list_legacy_recording_dirs(app)?;
 
@@ -441,8 +438,7 @@ pub fn migrate_legacy_recordings(
                         Ok(_) => match fs::remove_file(&src) {
                             Ok(()) => {
                                 result.migrated_files += 1;
-                                result.migrated_bytes =
-                                    result.migrated_bytes.saturating_add(size);
+                                result.migrated_bytes = result.migrated_bytes.saturating_add(size);
                             }
                             Err(remove_err) => result.errors.push(format!(
                                 "{}: copied but failed to remove source {}: {remove_err}",

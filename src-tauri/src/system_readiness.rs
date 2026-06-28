@@ -395,7 +395,8 @@ async fn check_models_dir(app: &AppHandle) -> ReadinessCheck {
                 ReadinessCheck {
                     id,
                     name: "Models directory".to_string(),
-                    description: "Whisper model weights are downloaded here on first use.".to_string(),
+                    description: "Whisper model weights are downloaded here on first use."
+                        .to_string(),
                     required: "writable".to_string(),
                     current: Some(models.to_string_lossy().to_string()),
                     state: ReadinessState::Installed,
@@ -409,7 +410,8 @@ async fn check_models_dir(app: &AppHandle) -> ReadinessCheck {
                 ReadinessCheck {
                     id,
                     name: "Models directory".to_string(),
-                    description: "Whisper model weights are downloaded here on first use.".to_string(),
+                    description: "Whisper model weights are downloaded here on first use."
+                        .to_string(),
                     required: "writable".to_string(),
                     current: None,
                     state: ReadinessState::Missing,
@@ -495,10 +497,7 @@ pub fn manual_command_for(id: &str, action: &str) -> String {
     }
 }
 
-fn drift_between(
-    previous: &[ReadinessCheck],
-    current: &[ReadinessCheck],
-) -> Vec<String> {
+fn drift_between(previous: &[ReadinessCheck], current: &[ReadinessCheck]) -> Vec<String> {
     let mut drift = Vec::new();
     for now in current {
         let Some(before) = previous.iter().find(|item| item.id == now.id) else {
@@ -520,9 +519,7 @@ fn drift_between(
             || (current_changed
                 && matches!(
                     now.state,
-                    ReadinessState::Missing
-                        | ReadinessState::Failed
-                        | ReadinessState::Outdated
+                    ReadinessState::Missing | ReadinessState::Failed | ReadinessState::Outdated
                 ))
         {
             drift.push(now.id.clone());
@@ -535,8 +532,7 @@ pub async fn build_report(app: &AppHandle) -> ReadinessReport {
     let ffmpeg = run_check(app, "ffmpeg", check_ffmpeg(app)).await;
     let whisper_cpp = run_check(app, "whisper-cpp", check_whisper_cpp(app)).await;
     let python = run_check(app, "python", check_python(app)).await;
-    let openai_whisper =
-        run_check(app, "openai-whisper", check_openai_whisper(app)).await;
+    let openai_whisper = run_check(app, "openai-whisper", check_openai_whisper(app)).await;
     let models_dir = run_check(app, "models-dir", check_models_dir(app)).await;
 
     let items = vec![ffmpeg, whisper_cpp, python, openai_whisper, models_dir];
@@ -631,10 +627,7 @@ fn all_required_pass(report: &ReadinessReport) -> bool {
 }
 
 #[tauri::command]
-pub async fn install_readiness_item(
-    app: AppHandle,
-    id: String,
-) -> Result<ReadinessCheck, String> {
+pub async fn install_readiness_item(app: AppHandle, id: String) -> Result<ReadinessCheck, String> {
     emit_progress(&app, &id, 0, "Starting…", false, false);
 
     let result = match id.as_str() {
@@ -666,7 +659,14 @@ async fn install_ffmpeg(app: &AppHandle) -> Result<ReadinessCheck> {
             let brew = ensure_homebrew_available()
                 .await
                 .context("Homebrew is required to install FFmpeg on macOS")?;
-            emit_progress(app, "ffmpeg", 60, "Running: brew install ffmpeg", false, false);
+            emit_progress(
+                app,
+                "ffmpeg",
+                60,
+                "Running: brew install ffmpeg",
+                false,
+                false,
+            );
             run_command(&brew, &["install".into(), "ffmpeg".into()])
                 .await
                 .context("brew install ffmpeg failed")?;
@@ -693,12 +693,9 @@ async fn install_ffmpeg(app: &AppHandle) -> Result<ReadinessCheck> {
             )
             .await;
             if sudo_result.is_err() {
-                run_command(
-                    "apt-get",
-                    &["install".into(), "-y".into(), "ffmpeg".into()],
-                )
-                .await
-                .context("apt-get install ffmpeg failed")?;
+                run_command("apt-get", &["install".into(), "-y".into(), "ffmpeg".into()])
+                    .await
+                    .context("apt-get install ffmpeg failed")?;
             }
         }
         "windows" => {
@@ -761,11 +758,8 @@ async fn install_whisper_cpp(app: &AppHandle) -> Result<ReadinessCheck> {
                 false,
                 false,
             );
-            let sudo_result = run_command(
-                "sudo",
-                &["-n".into(), "apt-get".into(), "update".into()],
-            )
-            .await;
+            let sudo_result =
+                run_command("sudo", &["-n".into(), "apt-get".into(), "update".into()]).await;
             if sudo_result.is_err() {
                 run_command("apt-get", &["update".into()])
                     .await
@@ -979,7 +973,14 @@ async fn install_openai_whisper(app: &AppHandle) -> Result<ReadinessCheck> {
 }
 
 async fn install_models_dir(app: &AppHandle) -> Result<ReadinessCheck> {
-    emit_progress(app, "models-dir", 50, "Creating models directory…", false, false);
+    emit_progress(
+        app,
+        "models-dir",
+        50,
+        "Creating models directory…",
+        false,
+        false,
+    );
     let dir = runtime_dir(app)?.join("models");
     if !dir.exists() {
         std::fs::create_dir_all(&dir).context("Failed to create models directory")?;
@@ -987,11 +988,7 @@ async fn install_models_dir(app: &AppHandle) -> Result<ReadinessCheck> {
     Ok(check_models_dir(app).await)
 }
 
-async fn ensure_linux_privilege_app(
-    app: &AppHandle,
-    id: &str,
-    action: &str,
-) -> Result<()> {
+async fn ensure_linux_privilege_app(app: &AppHandle, id: &str, action: &str) -> Result<()> {
     if command_available("sudo", &["-n", "true"]).await {
         return Ok(());
     }

@@ -2,10 +2,10 @@ import type { AppSettings, RuntimeProfile } from "@/lib/types";
 
 export const RUNTIME_PROFILES: RuntimeProfile[] = [
 	{
-		id: "recommended-m1",
-		title: "Recommended (M1 Fast Local)",
+		id: "recommended-local",
+		title: "Recommended (Local)",
 		description:
-			"whisper.cpp with Metal acceleration. Best speed + offline reliability on Apple Silicon.",
+			"whisper.cpp local runtime tuned for this processor. Offline transcription without Mac-specific assumptions.",
 		engine: "whisper_cpp",
 		model: "small",
 		recommended: true,
@@ -31,7 +31,7 @@ export const RUNTIME_PROFILES: RuntimeProfile[] = [
 ];
 
 export const DEFAULT_SETTINGS: AppSettings = {
-	profileId: "recommended-m1",
+	profileId: "recommended-local",
 	customModel: "",
 	language: "auto",
 	task: "transcribe",
