@@ -132,7 +132,7 @@ textarea {
 
 .studio-layout {
 	display: grid;
-	grid-template-columns: 330px minmax(0, 1fr);
+	grid-template-columns: 300px minmax(0, 1fr);
 	gap: 0.72rem;
 	flex: 1;
 	min-height: 0;
