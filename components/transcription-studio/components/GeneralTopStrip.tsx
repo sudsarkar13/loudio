@@ -4,7 +4,6 @@ interface GeneralTopStripProps {
 	activeView: "activity" | "history";
 	onSelectView: (view: "activity" | "history") => void;
 	onToggleCompactMode: () => void;
-	onOpenAbout: () => void;
 }
 
 export function GeneralTopStrip({
@@ -13,7 +12,6 @@ export function GeneralTopStrip({
 	activeView,
 	onSelectView,
 	onToggleCompactMode,
-	onOpenAbout,
 }: GeneralTopStripProps) {
 	return (
 		<section className="top-strip" aria-label="App status">
@@ -51,12 +49,6 @@ export function GeneralTopStrip({
 						History
 					</button>
 				</div>
-				<button
-					type="button"
-					className="btn compact-toggle-btn"
-					onClick={onOpenAbout}>
-					About
-				</button>
 				<button
 					className="btn compact-toggle-btn"
 					onClick={() => onToggleCompactMode()}>

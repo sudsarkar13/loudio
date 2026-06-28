@@ -26,7 +26,6 @@ import { SettingsPanel } from "@/components/transcription-studio/components/Sett
 import { SystemReadinessWizard } from "@/components/transcription-studio/components/SystemReadinessWizard/SystemReadinessWizard";
 import { ReadinessDriftBanner } from "@/components/transcription-studio/components/SystemReadinessWizard/ReadinessDriftBanner";
 import { WorkspaceActivityView } from "@/components/transcription-studio/components/WorkspaceActivityView";
-import { AboutPanel } from "@/components/transcription-studio/components/AboutPanel";
 import { isTauriRuntime } from "@/lib/tauri";
 
 export function TranscriptionStudio() {
@@ -98,9 +97,6 @@ export function TranscriptionStudio() {
 		void recheckReadiness(true);
 	}, [recheckReadiness]);
 
-	const [isAboutOpen, setIsAboutOpen] = useState<boolean>(false);
-	const onOpenAbout = useCallback(() => setIsAboutOpen(true), []);
-	const onCloseAbout = useCallback(() => setIsAboutOpen(false), []);
 
 	const {
 		devices: microphoneDevices,
@@ -343,7 +339,6 @@ export function TranscriptionStudio() {
 						activeView={activeGeneralView}
 						onSelectView={setActiveGeneralView}
 						onToggleCompactMode={onToggleCompactMode}
-						onOpenAbout={onOpenAbout}
 					/>
 
 					<ReadinessDriftBanner driftIds={driftIds} onReview={onReviewDrift} />
@@ -450,7 +445,6 @@ export function TranscriptionStudio() {
 					</section>
 				</>
 			}
-			<AboutPanel open={isAboutOpen} onClose={onCloseAbout} />
 		</main>
 	);
 }
