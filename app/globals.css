@@ -1376,9 +1376,9 @@ summary:focus-visible {
 
 .readiness-stepper-rail {
 	position: absolute;
-	left: 6%;
-	right: 6%;
-	top: 17px;
+	left: 10%;
+	right: 10%;
+	top: 9px;
 	height: 4px;
 	background: var(--border);
 	border-radius: 999px;
@@ -1387,11 +1387,11 @@ summary:focus-visible {
 
 .readiness-stepper-fill {
 	position: absolute;
-	left: 6%;
-	top: 17px;
+	left: 10%;
+	top: 9px;
 	height: 4px;
 	width: calc(
-		((var(--readiness-stepper-progress, 0) - 0) / (100 - 0)) * (94%) - 0%
+		((var(--readiness-stepper-progress, 0) - 0) / (100 - 0)) * (80%) - 0%
 	);
 	background: linear-gradient(
 		90deg,
@@ -1430,7 +1430,6 @@ summary:focus-visible {
 
 .readiness-step-active {
 	color: var(--text);
-	transform: translateY(-2px);
 }
 
 .readiness-step-done {
@@ -1471,7 +1470,6 @@ summary:focus-visible {
 	);
 	border-color: var(--focus);
 	color: #cfe2ff;
-	transform: scale(1.15);
 	box-shadow:
 		0 0 0 4px rgba(47, 129, 247, 0.15),
 		0 0 18px rgba(47, 129, 247, 0.5);
@@ -1486,7 +1484,6 @@ summary:focus-visible {
 	);
 	border-color: var(--success);
 	color: #7be3a0;
-	transform: scale(1);
 	animation: readiness-step-pop 480ms cubic-bezier(0.22, 1.6, 0.36, 1);
 }
 
