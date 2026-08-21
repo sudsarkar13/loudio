@@ -110,6 +110,8 @@ From `package.json`:
 - `yarn tauri:dev` — run Tauri desktop app in development
 - `yarn tauri:build` — build Tauri desktop app packages for the current platform target set
 - `yarn tauri:build:deb` — build Ubuntu/Debian package (`.deb`) only
+- `yarn version:check` — assert `package.json`, `tauri.conf.json` and `Cargo.toml` all declare the same version
+- `yarn version:set <version>` — bump the version across all three manifests
 
 ## Runtime Notes
 
@@ -141,6 +143,34 @@ try:
 - Verifying `ffmpeg` is available in your PATH
 - Running **Help → Run Runtime Bootstrap** inside the app
 - Setting `LOUDIO_FFMPEG_PATH` if ffmpeg is installed in a non-standard location
+
+## Releases
+
+Releases are **tag-driven**. Pushing an annotated `v*` tag runs
+[`.github/workflows/release.yml`](.github/workflows/release.yml), which builds
+every artifact and publishes the GitHub Release:
+
+| Artifact | Platform |
+| :-- | :-- |
+| `Loudio_<version>_aarch64.dmg` | macOS, Apple Silicon |
+| `Loudio_<version>_x64.dmg` | macOS, Intel |
+| `Loudio_<version>_amd64.deb` | Ubuntu / Debian |
+| `Loudio_<version>_amd64.AppImage` | Other Linux |
+| `SHA256SUMS` | checksums for all of the above |
+
+The channel comes from the tag — `v1.1.0` is Stable, while `v1.1.0-rc.1`,
+`v1.1.0-beta.1` and `v1.1.0-alpha.1` publish as prereleases and are never marked
+latest.
+
+```bash
+yarn version:set 1.1.0        # bump all three manifests
+# update CHANGELOG.md and RELEASE_NOTES.md — the pipeline requires both
+git commit -am "Release v1.1.0: ..." && git push origin main
+git tag -a v1.1.0 -m "v1.1.0 — Stable Release" && git push origin v1.1.0
+```
+
+The full procedure lives in
+[`.claude/skills/release-manager/SKILL.md`](.claude/skills/release-manager/SKILL.md).
 
 ## License
 

@@ -12,7 +12,9 @@
 		"tauri": "tauri",
 		"tauri:dev": "tauri dev",
 		"tauri:build": "tauri build",
-		"tauri:build:deb": "tauri build --bundles deb"
+		"tauri:build:deb": "tauri build --bundles deb",
+		"version:check": "node scripts/version.mjs --check",
+		"version:set": "node scripts/version.mjs --set"
 	},
 	"dependencies": {
 		"@tauri-apps/api": "2.10.1",

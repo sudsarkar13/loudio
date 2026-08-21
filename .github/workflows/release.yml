@@ -1,0 +1,401 @@
+name: Release
+
+# Releases are tag-driven. Bumping the version in a commit does nothing on its
+# own — pushing an annotated `v*` tag is what builds and publishes.
+#
+# Channel is derived from the tag:
+#   v1.2.3          -> Stable   (latest release)
+#   v1.2.3-rc.1     -> Release Candidate (prerelease)
+#   v1.2.3-beta.1   -> Beta     (prerelease)
+#   v1.2.3-alpha.1  -> Alpha    (prerelease)
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Existing tag to (re-)release, e.g. v1.1.0"
+        required: true
+        type: string
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release-${{ inputs.tag || github.ref_name }}
+  cancel-in-progress: false
+
+jobs:
+  validate:
+    name: Validate tag and version
+    runs-on: ubuntu-latest
+    outputs:
+      tag: ${{ steps.resolve.outputs.tag }}
+      version: ${{ steps.resolve.outputs.version }}
+      channel: ${{ steps.resolve.outputs.channel }}
+      prerelease: ${{ steps.resolve.outputs.prerelease }}
+
+    steps:
+      - name: Resolve tag, version and channel
+        id: resolve
+        env:
+          RAW_TAG: ${{ inputs.tag || github.ref_name }}
+        run: |
+          set -euo pipefail
+          TAG="$RAW_TAG"
+
+          # workflow_dispatch accepts free text, so the `v` prefix is not implied.
+          case "$TAG" in
+            v*) ;;
+            *) echo "::error::Tag '$TAG' must start with 'v' (e.g. v1.1.0)"; exit 1 ;;
+          esac
+
+          VERSION="${TAG#v}"
+
+          if ! echo "$VERSION" | grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+(-(alpha|beta|rc)\.[0-9]+)?$'; then
+            echo "::error::Tag '$TAG' is not vX.Y.Z or vX.Y.Z-(alpha|beta|rc).N"
+            exit 1
+          fi
+
+          case "$VERSION" in
+            *-alpha.*) CHANNEL="Alpha";             PRERELEASE=true  ;;
+            *-beta.*)  CHANNEL="Beta";              PRERELEASE=true  ;;
+            *-rc.*)    CHANNEL="Release Candidate"; PRERELEASE=true  ;;
+            *)         CHANNEL="Stable";            PRERELEASE=false ;;
+          esac
+
+          {
+            echo "tag=$TAG"
+            echo "version=$VERSION"
+            echo "channel=$CHANNEL"
+            echo "prerelease=$PRERELEASE"
+          } >> "$GITHUB_OUTPUT"
+
+          echo "Releasing $TAG as $CHANNEL (prerelease=$PRERELEASE)"
+
+      - name: Checkout tagged commit
+        uses: actions/checkout@v5
+        with:
+          ref: ${{ steps.resolve.outputs.tag }}
+
+      - name: Assert every manifest declares this version
+        env:
+          EXPECTED: ${{ steps.resolve.outputs.version }}
+        run: |
+          set -euo pipefail
+          ACTUAL=$(node scripts/version.mjs --check)
+          if [ "$ACTUAL" != "$EXPECTED" ]; then
+            echo "::error::Tag says $EXPECTED but the manifests declare $ACTUAL. Run 'yarn version:set $EXPECTED' and re-tag."
+            exit 1
+          fi
+          echo "All manifests declare $ACTUAL"
+
+      - name: Require a changelog entry for this version
+        env:
+          TAG: ${{ steps.resolve.outputs.tag }}
+        run: |
+          set -euo pipefail
+          if ! grep -qF "[$TAG]" CHANGELOG.md; then
+            echo "::error::CHANGELOG.md has no section heading containing [$TAG]"
+            exit 1
+          fi
+          echo "Changelog entry found for $TAG"
+
+      - name: Require release notes for this version
+        env:
+          TAG: ${{ steps.resolve.outputs.tag }}
+        run: |
+          set -euo pipefail
+          if ! grep -qF "$TAG" RELEASE_NOTES.md; then
+            echo "::error::RELEASE_NOTES.md does not mention $TAG. It must describe this version only."
+            exit 1
+          fi
+          echo "Release notes found for $TAG"
+
+  build-linux:
+    name: Build Linux (.deb + .AppImage)
+    needs: validate
+    # Pinned to 22.04 on purpose: binaries link against the runner's glibc, and
+    # building on 24.04 would exclude every 22.04 user.
+    runs-on: ubuntu-22.04
+    timeout-minutes: 45
+
+    steps:
+      - name: Checkout tagged commit
+        uses: actions/checkout@v5
+        with:
+          ref: ${{ needs.validate.outputs.tag }}
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v5
+        with:
+          node-version: 20
+          package-manager-cache: false
+
+      - name: Enable Corepack and activate Yarn from packageManager
+        run: |
+          corepack enable
+          YARN_VERSION=$(node -p "require('./package.json').packageManager.split('@')[1]")
+          corepack prepare "yarn@${YARN_VERSION}" --activate
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache Rust build artifacts
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri -> target
+          shared-key: ${{ runner.os }}-tauri
+
+      - name: Install Linux system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            libwebkit2gtk-4.1-dev \
+            libjavascriptcoregtk-4.1-dev \
+            libsoup-3.0-dev \
+            libgtk-3-dev \
+            libayatana-appindicator3-dev \
+            librsvg2-dev \
+            patchelf
+
+      - name: Cache Yarn dependencies
+        uses: actions/cache@v4
+        with:
+          path: |
+            .yarn/cache
+            .yarn/install-state.gz
+            node_modules
+          key: yarn-${{ runner.os }}-${{ hashFiles('yarn.lock', '.yarnrc.yml') }}
+          restore-keys: |
+            yarn-${{ runner.os }}-
+
+      - name: Install JS dependencies
+        run: yarn install --immutable
+
+      - name: Typecheck
+        run: yarn typecheck
+
+      - name: Build .deb and .AppImage bundles
+        env:
+          # linuxdeploy's strip step breaks the AppImage payload on this runner.
+          NO_STRIP: "true"
+        run: yarn tauri build --bundles deb,appimage
+
+      - name: Verify artifact versions
+        env:
+          EXPECTED_VERSION: ${{ needs.validate.outputs.version }}
+        run: |
+          bash .github/scripts/verify-artifacts.sh "$EXPECTED_VERSION" \
+            src-tauri/target/release/bundle/deb \
+            src-tauri/target/release/bundle/appimage
+
+      - name: Upload Linux artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: loudio-linux
+          path: |
+            src-tauri/target/release/bundle/deb/*.deb
+            src-tauri/target/release/bundle/appimage/*.AppImage
+          if-no-files-found: error
+
+  build-macos:
+    name: Build macOS .dmg (${{ matrix.arch }})
+    needs: validate
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: macos-14
+            arch: aarch64
+          # Intel Macs get no build at all without this runner.
+          - runner: macos-13
+            arch: x86_64
+
+    steps:
+      - name: Checkout tagged commit
+        uses: actions/checkout@v5
+        with:
+          ref: ${{ needs.validate.outputs.tag }}
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v5
+        with:
+          node-version: 20
+          package-manager-cache: false
+
+      - name: Enable Corepack and activate Yarn from packageManager
+        run: |
+          corepack enable
+          YARN_VERSION=$(node -p "require('./package.json').packageManager.split('@')[1]")
+          corepack prepare "yarn@${YARN_VERSION}" --activate
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache Rust build artifacts
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri -> target
+          shared-key: ${{ runner.os }}-${{ matrix.arch }}-tauri
+
+      - name: Cache Yarn dependencies
+        uses: actions/cache@v4
+        with:
+          path: |
+            .yarn/cache
+            .yarn/install-state.gz
+            node_modules
+          key: yarn-${{ runner.os }}-${{ matrix.arch }}-${{ hashFiles('yarn.lock', '.yarnrc.yml') }}
+          restore-keys: |
+            yarn-${{ runner.os }}-${{ matrix.arch }}-
+
+      - name: Install JS dependencies
+        run: yarn install --immutable
+
+      - name: Typecheck
+        run: yarn typecheck
+
+      - name: Select macOS signing mode
+        id: signing
+        env:
+          APPLE_SIGNING_ENABLED: ${{ secrets.APPLE_SIGNING_ENABLED }}
+          APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
+          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+          APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
+        run: |
+          set -euo pipefail
+
+          if [ "${APPLE_SIGNING_ENABLED:-}" != "true" ]; then
+            echo "enabled=false" >> "$GITHUB_OUTPUT"
+            echo "Building unsigned .dmg — set APPLE_SIGNING_ENABLED=true to opt into Apple signing."
+            exit 0
+          fi
+
+          if [ -z "${APPLE_CERTIFICATE:-}" ] || [ -z "${APPLE_CERTIFICATE_PASSWORD:-}" ] || [ -z "${APPLE_SIGNING_IDENTITY:-}" ]; then
+            echo "::error::APPLE_SIGNING_ENABLED=true requires APPLE_CERTIFICATE, APPLE_CERTIFICATE_PASSWORD and APPLE_SIGNING_IDENTITY."
+            exit 1
+          fi
+
+          CERT_PATH="$RUNNER_TEMP/apple-signing-certificate.p12"
+          if ! printf '%s' "$APPLE_CERTIFICATE" | base64 -D > "$CERT_PATH" 2>/dev/null; then
+            echo "::error::APPLE_CERTIFICATE must be a base64-encoded .p12 file."
+            exit 1
+          fi
+
+          if ! openssl pkcs12 -in "$CERT_PATH" -nokeys -passin "pass:$APPLE_CERTIFICATE_PASSWORD" -out /dev/null >/dev/null 2>&1; then
+            echo "::error::APPLE_CERTIFICATE could not be opened with APPLE_CERTIFICATE_PASSWORD."
+            exit 1
+          fi
+
+          echo "enabled=true" >> "$GITHUB_OUTPUT"
+
+      - name: Build unsigned .dmg
+        if: steps.signing.outputs.enabled != 'true'
+        run: |
+          unset APPLE_CERTIFICATE APPLE_CERTIFICATE_PASSWORD APPLE_SIGNING_IDENTITY
+          yarn tauri build --bundles dmg
+
+      - name: Build signed .dmg
+        if: steps.signing.outputs.enabled == 'true'
+        env:
+          APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
+          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+          APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
+        run: yarn tauri build --bundles dmg
+
+      - name: Notarize and staple
+        if: steps.signing.outputs.enabled == 'true'
+        env:
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_PASSWORD: ${{ secrets.APPLE_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+        run: |
+          if [ -z "${APPLE_ID:-}" ] || [ -z "${APPLE_PASSWORD:-}" ] || [ -z "${APPLE_TEAM_ID:-}" ]; then
+            echo "Skipping notarization — APPLE_ID / APPLE_PASSWORD / APPLE_TEAM_ID not all set."
+            exit 0
+          fi
+
+          set -euo pipefail
+          shopt -s nullglob
+          for dmg in src-tauri/target/release/bundle/dmg/*.dmg; do
+            echo "Submitting $dmg for notarization"
+            xcrun notarytool submit "$dmg" \
+              --apple-id "$APPLE_ID" \
+              --password "$APPLE_PASSWORD" \
+              --team-id "$APPLE_TEAM_ID" \
+              --wait
+            xcrun stapler staple "$dmg"
+          done
+
+      - name: Verify artifact versions
+        env:
+          EXPECTED_VERSION: ${{ needs.validate.outputs.version }}
+        run: |
+          bash .github/scripts/verify-artifacts.sh "$EXPECTED_VERSION" \
+            src-tauri/target/release/bundle/dmg
+
+      - name: Upload macOS artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: loudio-macos-${{ matrix.arch }}
+          path: src-tauri/target/release/bundle/dmg/*.dmg
+          if-no-files-found: error
+
+  publish:
+    name: Publish GitHub Release
+    # Every build must succeed before anything becomes visible. Publishing first
+    # would leave a live release with no downloads whenever a build broke.
+    needs: [validate, build-linux, build-macos]
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout tagged commit
+        uses: actions/checkout@v5
+        with:
+          ref: ${{ needs.validate.outputs.tag }}
+
+      - name: Download all build artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: staging
+
+      - name: Collect assets into a flat directory
+        run: |
+          set -euo pipefail
+          mkdir -p dist
+          find staging -type f \( -name '*.deb' -o -name '*.AppImage' -o -name '*.dmg' \) \
+            -exec mv -n {} dist/ \;
+          ls -la dist
+          if [ -z "$(ls -A dist)" ]; then
+            echo "::error::No release assets were collected."
+            exit 1
+          fi
+
+      - name: Generate SHA256SUMS
+        working-directory: dist
+        run: |
+          set -euo pipefail
+          sha256sum * > SHA256SUMS
+          cat SHA256SUMS
+
+      - name: Compose release body
+        env:
+          TAG: ${{ needs.validate.outputs.tag }}
+          CHANNEL: ${{ needs.validate.outputs.channel }}
+          REPO: ${{ github.repository }}
+        run: bash .github/scripts/compose-release-body.sh > body.md
+
+      - name: Create or update the release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ needs.validate.outputs.tag }}
+          name: Loudio ${{ needs.validate.outputs.tag }} — ${{ needs.validate.outputs.channel }}
+          body_path: body.md
+          files: dist/*
+          prerelease: ${{ needs.validate.outputs.prerelease }}
+          make_latest: ${{ needs.validate.outputs.prerelease == 'false' }}
+          draft: false
