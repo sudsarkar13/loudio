@@ -1,5 +1,8 @@
 use anyhow::{anyhow, Context, Result};
-use std::{env, path::PathBuf};
+use std::{
+    env, fs,
+    path::{Path, PathBuf},
+};
 
 use crate::{
     paths::runtime_dir,
@@ -76,9 +79,14 @@ pub async fn detect_ffmpeg_bin() -> Option<String> {
     None
 }
 
-pub async fn maybe_convert_audio_to_wav(input_path: &PathBuf) -> Result<PathBuf> {
-    let wav_path = input_path.with_extension("wav");
-
+/// Normalises any captured audio into the 16 kHz mono PCM wav that both whisper
+/// engines expect.
+///
+/// `output_path` is always distinct from `input_path` — the Linux capture path
+/// already produces a wav (at the AudioContext's native rate, typically 44.1
+/// kHz), so deriving the destination from the input extension would make ffmpeg
+/// read and write the same file.
+pub async fn convert_audio_to_wav_16k(input_path: &Path, output_path: &Path) -> Result<()> {
     let ffmpeg_bin = detect_ffmpeg_bin()
         .await
         .ok_or_else(|| anyhow!("ffmpeg not found in PATH or common install locations"))?;
@@ -93,15 +101,107 @@ pub async fn maybe_convert_audio_to_wav(input_path: &PathBuf) -> Result<PathBuf>
             "16000".into(),
             "-ac".into(),
             "1".into(),
-            wav_path.to_string_lossy().to_string(),
+            "-c:a".into(),
+            "pcm_s16le".into(),
+            output_path.to_string_lossy().to_string(),
         ],
     )
     .await
     .with_context(|| {
-        format!("Failed to convert microphone audio to wav with ffmpeg at {ffmpeg_bin}")
+        format!("Failed to convert microphone audio to 16 kHz wav with ffmpeg at {ffmpeg_bin}")
     })?;
 
-    Ok(wav_path)
+    Ok(())
+}
+
+/// Resolves a command name to an absolute path by scanning `PATH`, so callers
+/// can inspect *where* a binary actually lives rather than just whether it runs.
+pub fn resolve_binary_path(bin: &str) -> Option<PathBuf> {
+    if bin.contains('/') {
+        let candidate = PathBuf::from(bin);
+        return candidate.exists().then_some(candidate);
+    }
+
+    env::split_paths(&env::var_os("PATH")?)
+        .map(|dir| dir.join(bin))
+        .find(|path| path.exists())
+}
+
+/// Snap-packaged binaries run under AppArmor confinement. The `home` interface
+/// deliberately excludes dot-directories, so a snap engine cannot read anything
+/// under Loudio's data dir (`~/.local/share/<bundle-id>/…`) even though the
+/// files are plainly world-readable — it reports the input as "not found".
+///
+/// Returns the snap name when `bin` resolves into `/snap/bin`, so callers can
+/// stage engine input somewhere the snap is allowed to see.
+pub fn snap_name_for(bin: &str) -> Option<String> {
+    if !cfg!(target_os = "linux") {
+        return None;
+    }
+
+    let resolved = resolve_binary_path(bin)?;
+    if !resolved.starts_with("/snap/bin") {
+        return None;
+    }
+
+    let file_name = resolved.file_name()?.to_str()?;
+    if let Some((snap, _)) = file_name.split_once('.') {
+        return Some(snap.to_string());
+    }
+
+    // A snap *alias* (e.g. `whisper-cli`) is a relative symlink to the canonical
+    // `<snap>.<app>` entry point, which is where the snap name lives.
+    let target = fs::read_link(&resolved).ok()?;
+    let target_name = target.file_name()?.to_str()?;
+    target_name
+        .split_once('.')
+        .map(|(snap, _)| snap.to_string())
+}
+
+/// A directory a snap-confined engine is always allowed to read and write.
+/// `$HOME/snap/<snap>/common` belongs to the snap itself; Loudio is
+/// unconfined, so it can populate it on the snap's behalf.
+pub fn snap_staging_dir(snap: &str) -> Result<PathBuf> {
+    let home = env::var_os("HOME").ok_or_else(|| anyhow!("HOME is not set"))?;
+    let dir = PathBuf::from(home)
+        .join("snap")
+        .join(snap)
+        .join("common")
+        .join("loudio");
+    fs::create_dir_all(&dir).with_context(|| {
+        format!("Failed to prepare snap staging directory for {snap} at {dir:?}")
+    })?;
+    Ok(dir)
+}
+
+/// Exposes `source` inside `dir` under `file_name`. Hardlinks keep the ~500 MB
+/// model files single-instance and instant to stage; copying is only used when
+/// the two paths live on different filesystems.
+pub fn stage_file(source: &Path, dir: &Path, file_name: &str) -> Result<PathBuf> {
+    let dest = dir.join(file_name);
+    let source_len = fs::metadata(source)
+        .with_context(|| format!("Failed to inspect {}", source.display()))?
+        .len();
+
+    if let Ok(existing) = fs::metadata(&dest) {
+        if existing.len() == source_len {
+            return Ok(dest);
+        }
+        let _ = fs::remove_file(&dest);
+    }
+
+    if fs::hard_link(source, &dest).is_ok() {
+        return Ok(dest);
+    }
+
+    fs::copy(source, &dest).with_context(|| {
+        format!(
+            "Failed to stage {} into {}",
+            source.display(),
+            dir.display()
+        )
+    })?;
+    Ok(dest)
 }
 
 pub async fn detect_python_with_whisper() -> Option<String> {
@@ -131,6 +231,17 @@ pub async fn ensure_python_whisper_runtime(app: &tauri::AppHandle) -> Result<Str
 
     let venv_dir = runtime_dir(app)?.join("python-venv");
     let venv_python = venv_python_path(&venv_dir);
+    let venv_python_str = venv_python.to_string_lossy().to_string();
+
+    // A working venv is the common case once the app has been set up, and this
+    // runs on the transcription hot path. Re-running pip here would make every
+    // fallback transcription depend on the network (and take minutes), so only
+    // fall through to installation when whisper is genuinely not importable.
+    if venv_python.exists()
+        && command_available(&venv_python_str, &["-m", "whisper", "--help"]).await
+    {
+        return Ok(venv_python_str);
+    }
 
     if !venv_python.exists() {
         run_command(
@@ -142,7 +253,11 @@ pub async fn ensure_python_whisper_runtime(app: &tauri::AppHandle) -> Result<Str
             ],
         )
         .await
-        .context("Failed to create app-local Python virtual environment")?;
+        .context(if cfg!(target_os = "linux") {
+            "Failed to create app-local Python virtual environment. On Debian/Ubuntu this usually means the `python3-venv` package is missing: sudo apt-get install -y python3-venv"
+        } else {
+            "Failed to create app-local Python virtual environment"
+        })?;
     }
 
     run_command(

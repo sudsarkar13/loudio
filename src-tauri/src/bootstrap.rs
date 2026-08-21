@@ -6,8 +6,26 @@ use crate::{
         ensure_python_whisper_runtime,
     },
     paths::runtime_dir,
-    process::{emit_runtime_bootstrap_progress, run_command},
+    process::{command_available, emit_runtime_bootstrap_progress, run_command},
+    system_readiness::manual_command_for,
 };
+
+/// Installs `packages` with apt, preferring passwordless sudo and falling back
+/// to a direct call for the (rare) case where Loudio already runs as root.
+async fn apt_install(packages: &[&str]) -> anyhow::Result<()> {
+    let mut args: Vec<String> = vec!["install".into(), "-y".into()];
+    args.extend(packages.iter().map(|p| p.to_string()));
+
+    if command_available("sudo", &["-n", "true"]).await {
+        let mut sudo_args: Vec<String> = vec!["-n".into(), "apt-get".into()];
+        sudo_args.extend(args.iter().cloned());
+        run_command("sudo", &sudo_args).await?;
+        return Ok(());
+    }
+
+    run_command("apt-get", &args).await?;
+    Ok(())
+}
 
 #[tauri::command]
 pub async fn bootstrap_runtime(app: AppHandle) -> Result<String, String> {
@@ -29,43 +47,45 @@ pub async fn bootstrap_runtime(app: AppHandle) -> Result<String, String> {
             false,
         );
 
-        match ensure_homebrew_available().await {
-            Ok(brew_bin) => {
-                messages.push(format!("Homebrew ready at {brew_bin}."));
-                if run_command(&brew_bin, &["install".into(), "ffmpeg".into()])
-                    .await
-                    .is_ok()
-                {
-                    if let Some(ffmpeg_bin) = detect_ffmpeg_bin().await {
-                        messages.push(format!("FFmpeg installed via Homebrew at {ffmpeg_bin}."));
-                        emit_runtime_bootstrap_progress(&app, 45, "FFmpeg installed.", false);
-                    } else {
-                        messages.push("FFmpeg install completed but binary is still not discoverable from Loudio runtime.".into());
-                        emit_runtime_bootstrap_progress(
-                            &app,
-                            45,
-                            "FFmpeg installed but not discoverable. Configure LOUDIO_FFMPEG_PATH.",
-                            false,
-                        );
-                    }
+        let installed = if cfg!(target_os = "linux") {
+            apt_install(&["ffmpeg"]).await.map_err(|e| e.to_string())
+        } else {
+            match ensure_homebrew_available().await {
+                Ok(brew_bin) => {
+                    messages.push(format!("Homebrew ready at {brew_bin}."));
+                    run_command(&brew_bin, &["install".into(), "ffmpeg".into()])
+                        .await
+                        .map(|_| ())
+                        .map_err(|e| e.to_string())
+                }
+                Err(error) => Err(error.to_string()),
+            }
+        };
+
+        match installed {
+            Ok(()) => {
+                if let Some(ffmpeg_bin) = detect_ffmpeg_bin().await {
+                    messages.push(format!("FFmpeg installed at {ffmpeg_bin}."));
+                    emit_runtime_bootstrap_progress(&app, 45, "FFmpeg installed.", false);
                 } else {
-                    messages.push("Failed to auto-install FFmpeg with Homebrew. Install manually with `brew install ffmpeg` or set LOUDIO_FFMPEG_PATH.".into());
+                    messages.push("FFmpeg install completed but binary is still not discoverable from Loudio runtime.".into());
                     emit_runtime_bootstrap_progress(
                         &app,
                         45,
-                        "FFmpeg install failed. Manual install required.",
+                        "FFmpeg installed but not discoverable. Configure LOUDIO_FFMPEG_PATH.",
                         false,
                     );
                 }
             }
             Err(error) => {
                 messages.push(format!(
-                    "Homebrew unavailable: {error}. Install Homebrew from https://brew.sh and rerun Runtime Bootstrap."
+                    "Could not auto-install FFmpeg: {error}. Install it manually with `{}` and rerun Runtime Bootstrap.",
+                    manual_command_for("ffmpeg", "install")
                 ));
                 emit_runtime_bootstrap_progress(
                     &app,
                     45,
-                    "Homebrew unavailable. Install Homebrew manually and retry.",
+                    "FFmpeg install failed. Manual install required.",
                     false,
                 );
             }
@@ -86,33 +106,47 @@ pub async fn bootstrap_runtime(app: AppHandle) -> Result<String, String> {
             false,
         );
 
-        match ensure_homebrew_available().await {
-            Ok(brew_bin) => {
-                messages.push(format!("Homebrew ready at {brew_bin}."));
-                if run_command(&brew_bin, &["install".into(), "whisper-cpp".into()])
-                    .await
-                    .is_ok()
-                {
-                    messages.push("whisper.cpp installed via Homebrew.".into());
-                    emit_runtime_bootstrap_progress(&app, 75, "whisper.cpp installed.", false);
-                } else {
-                    messages.push("Failed to auto-install whisper.cpp. You can still run Python Whisper profile.".into());
-                    emit_runtime_bootstrap_progress(
-                        &app,
-                        75,
-                        "whisper.cpp install failed. Python profile can still work.",
-                        false,
-                    );
+        let installed = if cfg!(target_os = "linux") {
+            install_whisper_cpp_linux().await.map_err(|e| e.to_string())
+        } else {
+            match ensure_homebrew_available().await {
+                Ok(brew_bin) => {
+                    messages.push(format!("Homebrew ready at {brew_bin}."));
+                    run_command(&brew_bin, &["install".into(), "whisper-cpp".into()])
+                        .await
+                        .map(|_| ())
+                        .map_err(|e| e.to_string())
                 }
+                Err(error) => Err(error.to_string()),
+            }
+        };
+
+        match installed {
+            Ok(()) if detect_whisper_cli(None).await.is_some() => {
+                messages.push("whisper.cpp installed.".into());
+                emit_runtime_bootstrap_progress(&app, 75, "whisper.cpp installed.", false);
+            }
+            Ok(()) => {
+                messages.push(
+                    "whisper.cpp install finished but whisper-cli is still not discoverable."
+                        .into(),
+                );
+                emit_runtime_bootstrap_progress(
+                    &app,
+                    75,
+                    "whisper.cpp installed but not discoverable.",
+                    false,
+                );
             }
             Err(error) => {
                 messages.push(format!(
-                    "Homebrew unavailable: {error}. whisper.cpp can be installed manually later with Homebrew once available."
+                    "Could not auto-install whisper.cpp: {error}. Install it manually with `{}`. The Python Whisper profile still works in the meantime.",
+                    manual_command_for("whisper-cpp", "install")
                 ));
                 emit_runtime_bootstrap_progress(
                     &app,
                     75,
-                    "Homebrew unavailable. whisper.cpp auto-install skipped.",
+                    "whisper.cpp install failed. Python profile can still work.",
                     false,
                 );
             }
@@ -151,4 +185,39 @@ pub async fn bootstrap_runtime(app: AppHandle) -> Result<String, String> {
 
     emit_runtime_bootstrap_progress(&app, 100, "Runtime check complete.", true);
     Ok(messages.join(" "))
+}
+
+/// Ubuntu/Debian path for whisper.cpp: the `whisper-cpp` snap, aliased so the
+/// binary is discoverable under the `whisper-cli` name the engine looks for.
+async fn install_whisper_cpp_linux() -> anyhow::Result<()> {
+    let sudo = command_available("sudo", &["-n", "true"]).await;
+
+    let run = |bin: &'static str, args: Vec<String>| async move {
+        if sudo {
+            let mut sudo_args: Vec<String> = vec!["-n".into(), bin.into()];
+            sudo_args.extend(args);
+            run_command("sudo", &sudo_args).await.map(|_| ())
+        } else {
+            run_command(bin, &args).await.map(|_| ())
+        }
+    };
+
+    if !command_available("snap", &["version"]).await {
+        apt_install(&["snapd"]).await?;
+    }
+
+    run("snap", vec!["install".into(), "whisper-cpp".into()]).await?;
+
+    // Best-effort: the engine also probes the un-aliased `whisper-cpp.cli`.
+    let _ = run(
+        "snap",
+        vec![
+            "alias".into(),
+            "whisper-cpp.cli".into(),
+            "whisper-cli".into(),
+        ],
+    )
+    .await;
+
+    Ok(())
 }

@@ -7,7 +7,7 @@ use crate::{
         runtime_profiles, AppSettings, Engine, MicrophoneTranscriptionRequest, RuntimeProfile,
         TranscriptionRequest, TranscriptionResponse,
     },
-    paths::{runtime_dir, settings_path},
+    paths::{runtime_dir, settings_path, work_dir},
     process::{emit_transcription_progress, mime_type_to_extension},
     transcription::{transcribe_with_python, transcribe_with_whisper_cpp},
 };
@@ -119,38 +119,58 @@ pub async fn transcribe_microphone_audio(
 
     fs::write(&input_path, bytes).map_err(|e| format!("Failed to save microphone audio: {e}"))?;
 
-    emit_transcription_progress(&app, None, "Preparing microphone audio…", false, false);
+    emit_transcription_progress(
+        &app,
+        None,
+        "Converting microphone audio to 16 kHz wav for transcription…",
+        false,
+        false,
+    );
 
-    let prepared_path = if extension == "wav" {
-        input_path
+    // Normalise unconditionally, including when the capture is already a wav.
+    // The Linux capture path uses the AudioContext fallback (WebKitGTK has no
+    // usable MediaRecorder), so it yields a wav at the device's native rate —
+    // typically 44.1 kHz — where whisper wants 16 kHz mono. Previously that
+    // branch skipped ffmpeg entirely and handed the raw capture to the engine.
+    let is_wav_capture = extension == "wav";
+    let prepared_path = if is_wav_capture {
+        // The original already occupies `mic-<uuid>.wav`, so the normalised copy
+        // has to live elsewhere or ffmpeg would read and write the same file.
+        // `work/` keeps it out of the history view, which groups by file stem.
+        work_dir(&app)
+            .map_err(|e| e.to_string())?
+            .join(format!("mic-{}-16k.wav", Uuid::new_v4()))
     } else {
-        emit_transcription_progress(
-            &app,
-            None,
-            "Converting microphone audio to wav for transcription…",
-            false,
-            false,
-        );
-
-        match crate::binaries::maybe_convert_audio_to_wav(&input_path).await {
-            Ok(wav_path) => wav_path,
-            Err(error) => {
-                let message = format!(
-                    "Failed to convert microphone audio before transcription: {}",
-                    error
-                );
-                emit_transcription_progress(&app, None, message.clone(), true, true);
-                return Err(message);
-            }
-        }
+        // Keep the converted wav beside the original capture. Recording history
+        // groups by stem and prefers the wav, which is the only form every
+        // platform's webview can actually play back.
+        input_path.with_extension("wav")
     };
+
+    if let Err(error) =
+        crate::binaries::convert_audio_to_wav_16k(&input_path, &prepared_path).await
+    {
+        let message = format!(
+            "Failed to convert microphone audio before transcription: {error:#}"
+        );
+        emit_transcription_progress(&app, None, message.clone(), true, true);
+        return Err(message);
+    }
 
     let transcribe_request = TranscriptionRequest {
         audio_path: prepared_path.to_string_lossy().to_string(),
         settings: request.settings,
     };
 
-    transcribe_audio(app, transcribe_request).await
+    let result = transcribe_audio(app, transcribe_request).await;
+
+    // Only the scratch copy is disposable. The wav written next to a non-wav
+    // capture is what recording history plays back, so it has to stay.
+    if is_wav_capture {
+        let _ = fs::remove_file(&prepared_path);
+    }
+
+    result
 }
 
 #[tauri::command]

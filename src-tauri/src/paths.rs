@@ -29,6 +29,18 @@ pub fn runtime_dir(app: &tauri::AppHandle) -> Result<PathBuf> {
     Ok(dir)
 }
 
+/// Scratch directory for engine input that Loudio derives from a recording
+/// (e.g. the 16 kHz mono wav handed to whisper).
+///
+/// Deliberately *not* `runtime/output`: the history view groups that directory
+/// by file stem, so a derived file living next to the original capture would
+/// show up as a duplicate recording.
+pub fn work_dir(app: &tauri::AppHandle) -> Result<PathBuf> {
+    let dir = runtime_dir(app)?.join("work");
+    fs::create_dir_all(&dir)?;
+    Ok(dir)
+}
+
 pub fn recordings_output_dir(app: &tauri::AppHandle) -> Result<PathBuf> {
     let dir = runtime_dir(app)?.join("output");
     fs::create_dir_all(&dir)?;
