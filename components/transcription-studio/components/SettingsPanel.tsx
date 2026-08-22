@@ -25,6 +25,20 @@ interface SettingsPanelProps {
 	onRefreshMicrophoneDevices: () => Promise<void>;
 }
 
+/**
+ * Hint the engine path for the platform actually running.
+ *
+ * The Homebrew prefix only exists on macOS, so showing it to a Linux user
+ * points them at a path that can never resolve.
+ */
+function getEnginePathPlaceholder(): string {
+	if (typeof navigator === "undefined") return "/usr/local/bin/whisper-cli";
+	const agent = navigator.userAgent.toLowerCase();
+	if (agent.includes("mac")) return "/opt/homebrew/bin/whisper-cli";
+	if (agent.includes("win")) return "C:\\Program Files\\whisper\\whisper-cli.exe";
+	return "/snap/bin/whisper-cpp.whisper-cli";
+}
+
 export function SettingsPanel({
 	profiles,
 	settings,
@@ -40,6 +54,8 @@ export function SettingsPanel({
 	onRequestMicrophonePermission,
 	onRefreshMicrophoneDevices,
 }: SettingsPanelProps) {
+	const enginePathPlaceholder = getEnginePathPlaceholder();
+
 	return (
 		<aside className="card studio-settings">
 			<div className="section-title">
@@ -212,7 +228,7 @@ export function SettingsPanel({
 									manualEnginePath: event.target.value,
 								}))
 							}
-							placeholder="/opt/homebrew/bin/whisper-cli"
+							placeholder={enginePathPlaceholder}
 						/>
 					</div>
 				</div>
