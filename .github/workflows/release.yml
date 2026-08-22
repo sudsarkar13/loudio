@@ -29,7 +29,10 @@ concurrency:
 jobs:
   validate:
     name: Validate tag and version
-    runs-on: ubuntu-latest
+    # Matches the packaging job in ci.yml: 22.04 ships the oldest AppStream
+    # among supported targets, so the release gate must not be more lenient
+    # than CI about metadata a 22.04 software centre has to parse.
+    runs-on: ubuntu-22.04
     outputs:
       tag: ${{ steps.resolve.outputs.tag }}
       version: ${{ steps.resolve.outputs.version }}

@@ -66,6 +66,10 @@ jobs:
 
   packaging:
     name: Validate packaging metadata
+    # Pinned to 22.04 on purpose: it ships AppStream 0.15, the oldest validator
+    # among supported targets. Metadata that only parses on newer AppStream
+    # would render incompletely in a 22.04 user's software centre, so validate
+    # against the oldest rather than the newest.
     runs-on: ubuntu-22.04
     timeout-minutes: 10
 

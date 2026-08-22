@@ -31,8 +31,13 @@ def main(metainfo_path: str, conf_path: str) -> int:
         if not (root.findtext(tag) or "").strip():
             problems.append(f"<{tag}> is missing or empty — {why}")
 
-    if root.find("developer/name") is None:
-        problems.append("<developer><name> is missing — no publisher is shown")
+    # Accept either spelling: <developer><name> is the AppStream 1.0 form, while
+    # <developer_name> is what AppStream 0.15 on Ubuntu 22.04 understands.
+    if root.find("developer/name") is None and root.find("developer_name") is None:
+        problems.append(
+            "neither <developer><name> nor <developer_name> is set "
+            "— no publisher is shown"
+        )
     if not root.findall("description/p"):
         problems.append("<description> has no paragraphs — no detail text is shown")
     if not root.findall("screenshots/screenshot"):

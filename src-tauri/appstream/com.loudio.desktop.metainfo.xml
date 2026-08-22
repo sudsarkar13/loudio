@@ -20,9 +20,14 @@
   <name>Loudio</name>
   <summary>Offline transcription studio for audio files and microphone recordings</summary>
 
-  <developer id="io.github.sudsarkar13">
-    <name>Sudeepta Sarkar</name>
-  </developer>
+  <!--
+    developer_name is deprecated in favour of <developer><name> as of AppStream
+    1.0, but Ubuntu 22.04 ships AppStream 0.15, which rejects <developer> as an
+    unknown tag. 22.04 is a supported target — build-linux is pinned to it for
+    glibc — so its software centre has to be able to parse this. Newer
+    validators accept the deprecated tag and only emit an info.
+  -->
+  <developer_name>Sudeepta Sarkar</developer_name>
 
   <!--
     The desktop file Tauri generates is named after productName, which does not
@@ -73,7 +78,6 @@
 
   <url type="homepage">https://github.com/sudsarkar13/loudio</url>
   <url type="bugtracker">https://github.com/sudsarkar13/loudio/issues</url>
-  <url type="vcs-browser">https://github.com/sudsarkar13/loudio</url>
 
   <!--
     Screenshots must be reachable over HTTP: stores download them, they are not
