@@ -15,7 +15,11 @@ CORE="${EXPECTED%%-*}"
 
 total=0
 for dir in "$@"; do
-  files=("$dir"/*)
+  # Match release artifacts by extension. Tauri leaves other things beside the
+  # real output — bundle_dmg.sh in bundle/dmg, and a temporary rw.*.dmg while
+  # converting — and treating every file in the directory as an artifact made
+  # the macOS builds fail on bundle_dmg.sh, which carries no version.
+  files=("$dir"/*.dmg "$dir"/*.deb "$dir"/*.AppImage)
   if [ "${#files[@]}" -eq 0 ]; then
     echo "::error::No artifacts produced in $dir"
     exit 1
@@ -23,6 +27,11 @@ for dir in "$@"; do
 
   for file in "${files[@]}"; do
     base="$(basename "$file")"
+
+    # Tauri's intermediate read-write image, if bundling left one behind.
+    case "$base" in
+      rw.*.dmg) continue ;;
+    esac
     if [[ "$base" != *"$EXPECTED"* && "$base" != *"$CORE"* ]]; then
       echo "::error::$base does not carry version $EXPECTED"
       exit 1
