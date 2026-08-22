@@ -39,6 +39,38 @@ const TARGETS = [
 		write: (raw, next) =>
 			raw.replace(/^(version\s*=\s*)"[^"]+"/m, `$1"${next}"`),
 	},
+	{
+		// Committed lockfile. Anchored to the `loudio` package entry because
+		// dozens of dependencies also declare a bare `version = "…"`.
+		file: "src-tauri/Cargo.lock",
+		read: (raw) => raw.match(/^name = "loudio"\nversion = "([^"]+)"/m)?.[1],
+		write: (raw, next) =>
+			raw.replace(
+				/^(name = "loudio"\nversion = )"[^"]+"/m,
+				`$1"${next}"`,
+			),
+	},
+	{
+		// AppStream metadata read by GNOME Software / KDE Discover. Checked but
+		// never rewritten: each version needs its own <release> block with real
+		// notes, and blindly relabelling the previous block would erase it.
+		file: "src-tauri/appstream/com.loudio.desktop.metainfo.xml",
+		read: (raw) => raw.match(/<release\s+version="([^"]+)"/)?.[1],
+		write: null,
+		manualHint:
+			'add a <release version="{next}" date="YYYY-MM-DD"> block describing this version',
+	},
+	{
+		// The native Help -> About Loudio dialog. This is the only version
+		// string a user ever reads inside the app, and it silently drifted
+		// behind the manifests until it was added here.
+		file: "lib/desktop-menu.ts",
+		read: (raw) => raw.match(/\bshortVersion:\s*"([^"]+)"/)?.[1],
+		write: (raw, next) =>
+			raw
+				.replace(/(\bversion:\s*)"[^"]+"/, `$1"${next}"`)
+				.replace(/(\bshortVersion:\s*)"[^"]+"/, `$1"${next}"`),
+	},
 ];
 
 // Semver with an optional dotted prerelease: 1.2.3, 1.2.3-beta.1, 1.2.3-rc.2
@@ -90,7 +122,19 @@ function set(next) {
 		process.exit(1);
 	}
 
+	const reminders = [];
+
 	for (const entry of readAll()) {
+		if (!entry.write) {
+			if (entry.version !== next) {
+				reminders.push(
+					`${entry.file}: still declares ${entry.version} — ` +
+						entry.manualHint.replace("{next}", next),
+				);
+			}
+			continue;
+		}
+
 		const updated = entry.write(entry.raw, next);
 		if (updated === entry.raw && entry.version !== next) {
 			console.error(`Failed to rewrite the version in ${entry.file}`);
@@ -98,6 +142,11 @@ function set(next) {
 		}
 		writeFileSync(entry.path, updated);
 		console.log(`${entry.file}: ${entry.version} -> ${next}`);
+	}
+
+	if (reminders.length > 0) {
+		console.log("\nStill needs a manual edit:");
+		for (const line of reminders) console.log(`- ${line}`);
 	}
 }
 

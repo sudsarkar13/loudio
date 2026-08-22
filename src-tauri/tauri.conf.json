@@ -35,11 +35,17 @@
 	},
 	"bundle": {
 		"active": true,
-		"targets": ["dmg", "app", "deb"],
+		"targets": [
+			"dmg",
+			"app",
+			"deb"
+		],
 		"icon": [
 			"icons/32x32.png",
+			"icons/64x64.png",
 			"icons/128x128.png",
 			"icons/128x128@2x.png",
+			"icons/icon.png",
 			"icons/icon.icns",
 			"icons/icon.ico"
 		],
@@ -47,6 +53,27 @@
 		"macOS": {
 			"minimumSystemVersion": "12.0",
 			"infoPlist": "Info.plist"
+		},
+		"publisher": "Sudeepta Sarkar",
+		"homepage": "https://github.com/sudsarkar13/loudio",
+		"license": "MIT",
+		"category": "Productivity",
+		"copyright": "© 2026 Sudeepta Sarkar",
+		"shortDescription": "Offline transcription studio for audio files and microphone recordings",
+		"longDescription": "Loudio turns speech into text entirely on your own machine. Audio never leaves your computer: transcription runs locally through whisper.cpp, with an OpenAI Whisper Python runtime as a fallback, so the app keeps working without a network connection once its model is downloaded.\nRecord from any microphone and transcribe automatically when you stop, or transcribe existing MP3, WAV, M4A, FLAC, AAC and OGG files. Runtime profiles let you trade speed against accuracy, transcripts stream in live with optional timestamps, and a built-in readiness wizard installs the FFmpeg and Whisper dependencies Loudio needs.",
+		"linux": {
+			"deb": {
+				"section": "sound",
+				"priority": "optional",
+				"recommends": [
+					"gnome-shell-extension-appindicator"
+				],
+				"desktopTemplate": "appstream/loudio.desktop.hbs",
+				"files": {
+					"/usr/share/metainfo/com.loudio.desktop.metainfo.xml": "appstream/com.loudio.desktop.metainfo.xml",
+					"/usr/share/doc/loudio/copyright": "appstream/copyright"
+				}
+			}
 		}
 	}
 }

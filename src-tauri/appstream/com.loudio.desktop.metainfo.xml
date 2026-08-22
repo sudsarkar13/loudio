@@ -1,0 +1,150 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  AppStream MetaInfo for Loudio.
+
+  This is the file GNOME Software, KDE Discover and the Ubuntu App Center read
+  to show the app name, icon, description, screenshots, licence and per-release
+  notes. Without it those stores fall back to the bare dpkg control fields,
+  which is why Loudio previously appeared as "loudio" with a "(none)"
+  description, no screenshots and an "Unknown License" warning.
+
+  It is installed to /usr/share/metainfo/ by bundle.linux.deb.files in
+  src-tauri/tauri.conf.json.
+-->
+<component type="desktop-application">
+  <id>com.loudio.desktop</id>
+
+  <metadata_license>CC0-1.0</metadata_license>
+  <project_license>MIT</project_license>
+
+  <name>Loudio</name>
+  <summary>Offline transcription studio for audio files and microphone recordings</summary>
+
+  <developer id="io.github.sudsarkar13">
+    <name>Sudeepta Sarkar</name>
+  </developer>
+
+  <!--
+    The desktop file Tauri generates is named after productName, which does not
+    match the component id. `launchable` is the supported way to bind them.
+  -->
+  <launchable type="desktop-id">Loudio.desktop</launchable>
+
+  <description>
+    <p>
+      Loudio turns speech into text entirely on your own machine. Audio never
+      leaves your computer: transcription runs locally through whisper.cpp, with
+      an OpenAI Whisper Python runtime as a fallback, so the app keeps working
+      without a network connection once its model is downloaded.
+    </p>
+    <p>Features:</p>
+    <ul>
+      <li>Record from any microphone and transcribe automatically when you stop</li>
+      <li>Transcribe existing audio files in MP3, WAV, M4A, FLAC, AAC and OGG</li>
+      <li>Choose between speed and accuracy with selectable local runtime profiles</li>
+      <li>Translate speech into English as an alternative to plain transcription</li>
+      <li>Watch text appear live while the engine works, with optional timestamps</li>
+      <li>Review, replay and manage past recordings from a built-in history view</li>
+      <li>Copy transcripts to the clipboard in one click</li>
+      <li>Check and repair the local runtime from a guided readiness wizard</li>
+    </ul>
+    <p>
+      Loudio needs FFmpeg and a Whisper engine on your system. The built-in
+      readiness wizard detects what is missing and installs it for you.
+    </p>
+  </description>
+
+  <categories>
+    <category>AudioVideo</category>
+    <category>Audio</category>
+    <category>Utility</category>
+  </categories>
+
+  <keywords>
+    <keyword>transcription</keyword>
+    <keyword>transcribe</keyword>
+    <keyword>speech to text</keyword>
+    <keyword>dictation</keyword>
+    <keyword>subtitles</keyword>
+    <keyword>whisper</keyword>
+    <keyword>offline</keyword>
+    <keyword>audio</keyword>
+  </keywords>
+
+  <url type="homepage">https://github.com/sudsarkar13/loudio</url>
+  <url type="bugtracker">https://github.com/sudsarkar13/loudio/issues</url>
+  <url type="vcs-browser">https://github.com/sudsarkar13/loudio</url>
+
+  <!--
+    Screenshots must be reachable over HTTP: stores download them, they are not
+    packaged. These point at docs/screenshots/ on the main branch.
+  -->
+  <screenshots>
+    <screenshot type="default">
+      <image>https://raw.githubusercontent.com/sudsarkar13/loudio/main/docs/screenshots/01-main-window.png</image>
+      <caption>Transcribing a microphone recording in the main window</caption>
+    </screenshot>
+    <screenshot>
+      <image>https://raw.githubusercontent.com/sudsarkar13/loudio/main/docs/screenshots/02-recording.png</image>
+      <caption>Recording from a selected microphone</caption>
+    </screenshot>
+    <screenshot>
+      <image>https://raw.githubusercontent.com/sudsarkar13/loudio/main/docs/screenshots/03-settings.png</image>
+      <caption>Choosing a local runtime profile, language and output options</caption>
+    </screenshot>
+    <screenshot>
+      <image>https://raw.githubusercontent.com/sudsarkar13/loudio/main/docs/screenshots/04-history.png</image>
+      <caption>Reviewing and replaying earlier recordings</caption>
+    </screenshot>
+    <screenshot>
+      <image>https://raw.githubusercontent.com/sudsarkar13/loudio/main/docs/screenshots/05-readiness.png</image>
+      <caption>The system readiness wizard checking local dependencies</caption>
+    </screenshot>
+  </screenshots>
+
+  <releases>
+    <release version="1.0.2" date="2026-08-22">
+      <url>https://github.com/sudsarkar13/loudio/releases/tag/v1.0.2</url>
+      <description>
+        <p>
+          Fixes transcription on Linux, which previously failed on every attempt
+          and fell back to a Python engine that also failed.
+        </p>
+        <ul>
+          <li>Stage audio and models where a snap-confined Whisper engine can read them</li>
+          <li>Verify and resume model downloads so a truncated file no longer breaks every run</li>
+          <li>Stop reinstalling Python packages before each fallback transcription</li>
+          <li>Normalise microphone audio to 16 kHz mono before transcribing</li>
+          <li>Report the real engine error instead of discarding it</li>
+        </ul>
+      </description>
+    </release>
+    <release version="1.0.1" date="2026-06-28">
+      <url>https://github.com/sudsarkar13/loudio/releases/tag/v1.0.1</url>
+      <description>
+        <p>Adds recording history and platform-aware runtime profiles.</p>
+      </description>
+    </release>
+    <release version="1.0.0" date="2026-06-28">
+      <url>https://github.com/sudsarkar13/loudio/releases/tag/v1.0.0</url>
+      <description>
+        <p>First stable release.</p>
+      </description>
+    </release>
+  </releases>
+
+  <content_rating type="oars-1.1" />
+
+  <supports>
+    <control>pointing</control>
+    <control>keyboard</control>
+  </supports>
+
+  <requires>
+    <display_length compare="ge">768</display_length>
+  </requires>
+
+  <provides>
+    <binary>loudio</binary>
+  </provides>
+</component>
