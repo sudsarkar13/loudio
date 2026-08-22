@@ -155,7 +155,6 @@ every artifact and publishes the GitHub Release:
 | `Loudio_<version>_aarch64.dmg` | macOS, Apple Silicon |
 | `Loudio_<version>_x64.dmg` | macOS, Intel |
 | `Loudio_<version>_amd64.deb` | Ubuntu / Debian |
-| `Loudio_<version>_amd64.AppImage` | Other Linux |
 | `SHA256SUMS` | checksums for all of the above |
 
 The channel comes from the tag — `v1.1.0` is Stable, while `v1.1.0-rc.1`,

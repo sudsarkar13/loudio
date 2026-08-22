@@ -113,8 +113,34 @@ jobs:
           fi
           echo "Release notes found for $TAG"
 
+      - name: Install AppStream and desktop-entry validators
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y appstream desktop-file-utils
+
+      - name: Validate store packaging metadata
+        run: bash .github/scripts/validate-packaging.sh
+
+      # Screenshots are fetched by stores from raw.githubusercontent.com, not
+      # packaged. Missing ones show as blank slots on the store page, so this is
+      # a hard gate at release time.
+      - name: Require every screenshot URL to resolve
+        run: bash .github/scripts/check-screenshots.sh
+
+      - name: Require the MetaInfo to declare this version
+        env:
+          VERSION: ${{ steps.resolve.outputs.version }}
+        run: |
+          set -euo pipefail
+          DECLARED=$(node scripts/version.mjs --check)
+          if [ "$DECLARED" != "$VERSION" ]; then
+            echo "::error::version.mjs reports $DECLARED but the tag says $VERSION"
+            exit 1
+          fi
+          echo "MetaInfo and all manifests declare $VERSION"
+
   build-linux:
-    name: Build Linux (.deb + .AppImage)
+    name: Build Linux (.deb)
     needs: validate
     # Pinned to 22.04 on purpose: binaries link against the runner's glibc, and
     # building on 24.04 would exclude every 22.04 user.
@@ -177,27 +203,34 @@ jobs:
       - name: Typecheck
         run: yarn typecheck
 
-      - name: Build .deb and .AppImage bundles
-        env:
-          # linuxdeploy's strip step breaks the AppImage payload on this runner.
-          NO_STRIP: "true"
-        run: yarn tauri build --bundles deb,appimage
+      - name: Build .deb bundle
+        run: yarn tauri build --bundles deb
 
       - name: Verify artifact versions
         env:
           EXPECTED_VERSION: ${{ needs.validate.outputs.version }}
         run: |
           bash .github/scripts/verify-artifacts.sh "$EXPECTED_VERSION" \
-            src-tauri/target/release/bundle/deb \
-            src-tauri/target/release/bundle/appimage
+            src-tauri/target/release/bundle/deb
+
+      - name: Install package inspectors
+        run: |
+          sudo apt-get install -y appstream desktop-file-utils
+
+      # Regression guard on the artifact itself: if deb.files or the desktop
+      # template ever breaks, Tauri still emits a working package that has
+      # quietly lost its store metadata.
+      - name: Verify store metadata survived into the .deb
+        run: |
+          for deb in src-tauri/target/release/bundle/deb/*.deb; do
+            bash .github/scripts/verify-deb-metadata.sh "$deb"
+          done
 
       - name: Upload Linux artifacts
         uses: actions/upload-artifact@v4
         with:
           name: loudio-linux
-          path: |
-            src-tauri/target/release/bundle/deb/*.deb
-            src-tauri/target/release/bundle/appimage/*.AppImage
+          path: src-tauri/target/release/bundle/deb/*.deb
           if-no-files-found: error
 
   build-macos:
@@ -211,8 +244,9 @@ jobs:
         include:
           - runner: macos-14
             arch: aarch64
-          # Intel Macs get no build at all without this runner.
-          - runner: macos-13
+          # Intel Macs get no build at all without this runner. macos-13 was
+          # retired by GitHub; macos-15-intel is the current Intel image.
+          - runner: macos-15-intel
             arch: x86_64
 
     steps:
@@ -367,7 +401,7 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p dist
-          find staging -type f \( -name '*.deb' -o -name '*.AppImage' -o -name '*.dmg' \) \
+          find staging -type f \( -name '*.deb' -o -name '*.dmg' \) \
             -exec mv -n {} dist/ \;
           ls -la dist
           if [ -z "$(ls -A dist)" ]; then

@@ -19,7 +19,6 @@ asset() {
 }
 
 DEB=$(asset '*.deb')
-APPIMAGE=$(asset '*.AppImage')
 DMG_ARM=$(asset '*aarch64.dmg')
 DMG_X64=$(asset '*x64.dmg')
 
@@ -37,7 +36,6 @@ echo "| :-- | :-- |"
 [ -n "$DMG_ARM" ]  && echo "| macOS — Apple Silicon (M1/M2/M3/M4) | [\`$DMG_ARM\`]($BASE/$DMG_ARM) |"
 [ -n "$DMG_X64" ]  && echo "| macOS — Intel | [\`$DMG_X64\`]($BASE/$DMG_X64) |"
 [ -n "$DEB" ]      && echo "| Ubuntu / Debian | [\`$DEB\`]($BASE/$DEB) |"
-[ -n "$APPIMAGE" ] && echo "| Other Linux (portable) | [\`$APPIMAGE\`]($BASE/$APPIMAGE) |"
 echo "| Checksums | [\`SHA256SUMS\`]($BASE/SHA256SUMS) |"
 echo
 
@@ -65,20 +63,6 @@ sudo snap alias whisper-cpp.cli whisper-cli
 The first transcription downloads the Whisper model (~490 MB for \`small\`) into
 \`~/.local/share/com.loudio.desktop/runtime/models\`. That is a one-time cost and
 everything after it runs offline.
-
-INSTALL
-fi
-
-if [ -n "$APPIMAGE" ]; then
-  cat <<INSTALL
-### Other Linux distributions
-
-\`\`\`bash
-chmod +x $APPIMAGE
-./$APPIMAGE
-\`\`\`
-
-The same \`ffmpeg\` and \`whisper-cpp\` prerequisites apply.
 
 INSTALL
 fi

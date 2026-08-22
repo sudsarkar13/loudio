@@ -1,6 +1,6 @@
 ---
 name: release-manager
-description: Standard operating procedure for cutting a Loudio release — bumping the version across package.json, tauri.conf.json and Cargo.toml, writing the changelog and release notes, and the tag-driven CI/CD pipeline that builds the .deb, .AppImage and both .dmg architectures, then publishes the GitHub Release on the correct channel (Stable/RC/Beta/Alpha) with checksums and install instructions. ONLY activate this skill when the user explicitly requests or initiates a new version release or version bump.
+description: Standard operating procedure for cutting a Loudio release — bumping the version across package.json, tauri.conf.json and Cargo.toml, writing the changelog and release notes, and the tag-driven CI/CD pipeline that builds the .deb and both .dmg architectures, then publishes the GitHub Release on the correct channel (Stable/RC/Beta/Alpha) with checksums and install instructions. ONLY activate this skill when the user explicitly requests or initiates a new version release or version bump.
 ---
 
 # Release Manager Skill
@@ -43,17 +43,29 @@ Release titles are generated as `Loudio <tag> — <Channel>`. Do not hand-write 
 
 ### 1. Bump the version everywhere (one command)
 
-Three manifests must agree or the release fails at `validate`. Use the tool
-rather than editing by hand:
+Six files declare the version and all must agree, or the release fails at
+`validate`. Use the tool rather than editing by hand:
 
 ```bash
 yarn version:set 1.1.0
 yarn version:check          # prints the version; non-zero exit if they disagree
 ```
 
-Covered files — [scripts/version.mjs](../../../scripts/version.mjs) is the
-source of truth, see its `TARGETS`:
-`package.json`, `src-tauri/tauri.conf.json`, `src-tauri/Cargo.toml`.
+Rewritten automatically — [scripts/version.mjs](../../../scripts/version.mjs) is
+the source of truth, see its `TARGETS`:
+
+- `package.json`
+- `src-tauri/tauri.conf.json`
+- `src-tauri/Cargo.toml`
+- `src-tauri/Cargo.lock` (tracked; anchored to the `loudio` entry, since many
+  dependencies also declare a bare `version = "…"`)
+- `lib/desktop-menu.ts` — the **Help → About Loudio** dialog, the only version
+  string a user reads inside the app. It was hardcoded and drifting until v1.0.2.
+
+**Checked but never rewritten**: `src-tauri/appstream/com.loudio.desktop.metainfo.xml`.
+`version:set` prints a reminder instead, because every version needs its own
+`<release>` block with real notes — relabelling the previous one would erase it.
+Add the block by hand, then re-run `yarn version:check`.
 
 `README.md` deliberately carries no hard-coded version.
 
@@ -103,6 +115,69 @@ Do **not** hand-write download links, install commands or checksums into
 generates all of that from the artifacts actually produced, so hand-written
 copies drift and lie.
 
+### 3b. Update the store metadata
+
+The `.deb` ships an AppStream MetaInfo file that GNOME Software, KDE Discover and
+the Ubuntu App Center read for the app's name, description, licence, screenshots
+and per-release notes. Without it stores show the bare dpkg fields — which is how
+Loudio appeared as "loudio" with a "(none)" description before v1.0.2.
+
+Add a `<release>` block for this version in
+[`src-tauri/appstream/com.loudio.desktop.metainfo.xml`](../../../src-tauri/appstream/com.loudio.desktop.metainfo.xml),
+then validate:
+
+```bash
+appstreamcli validate --pedantic src-tauri/appstream/com.loudio.desktop.metainfo.xml
+```
+
+Screenshots are **not** packaged — stores fetch them from
+`raw.githubusercontent.com/.../main/docs/screenshots/`. They must be committed and
+pushed to `main` **before** publishing, or the store shows blank slots. Verify:
+
+```bash
+for n in 01-main-window 02-recording 03-settings 04-history 05-readiness; do
+  printf '%-18s %s\n' "$n" "$(curl -s -o /dev/null -w '%{http_code}' \
+    "https://raw.githubusercontent.com/sudsarkar13/loudio/main/docs/screenshots/$n.png")"
+done
+```
+
+All five must return `200`. See [docs/screenshots/README.md](../../../docs/screenshots/README.md).
+
+### 3c. Test the pipeline locally before pushing
+
+The workflows can be exercised on this machine — no runner, no push. This is how
+a retired `macos-13` runner label and three script bugs were caught before they
+ever reached GitHub.
+
+```bash
+# Static analysis, including shellcheck on every `run:` block
+actionlint .github/workflows/*.yml
+
+# Store metadata: AppStream, desktop entry, referenced files
+bash .github/scripts/validate-packaging.sh
+
+# Screenshot URLs (strict; --warn-only for everyday CI)
+bash .github/scripts/check-screenshots.sh
+
+# Execute a job's shell steps locally. `uses:` steps, package installs and the
+# long native builds are reported and skipped; everything else really runs.
+bash .github/scripts/run-workflow-locally.sh .github/workflows/ci.yml packaging
+bash .github/scripts/run-workflow-locally.sh .github/workflows/release.yml validate \
+  inputs.tag=vX.Y.Z steps.resolve.outputs.tag=vX.Y.Z steps.resolve.outputs.version=X.Y.Z
+```
+
+And against a package you actually built:
+
+```bash
+yarn tauri build --bundles deb
+bash .github/scripts/verify-deb-metadata.sh \
+  src-tauri/target/release/bundle/deb/Loudio_X.Y.Z_amd64.deb
+```
+
+`actionlint` is not preinstalled; grab the single binary from
+<https://github.com/rhysd/actionlint/releases>. The rest need only
+`appstream`, `desktop-file-utils` and `python3`.
+
 ### 4. Commit and push, then wait for CI
 
 ```bash
@@ -122,15 +197,20 @@ git push origin v1.1.0
 
 The pipeline then runs:
 
-1. **validate** — parses the channel from the tag, asserts all three manifests
-   declare that exact version, and requires matching `CHANGELOG.md` and
-   `RELEASE_NOTES.md` entries.
-2. **build-linux** — `.deb` and `.AppImage` on **ubuntu-22.04**. Pinned on
+1. **validate** — parses the channel from the tag, asserts every manifest
+   declares that exact version, requires matching `CHANGELOG.md` and
+   `RELEASE_NOTES.md` entries, validates the AppStream and desktop metadata, and
+   **requires every screenshot URL to return 200**.
+2. **build-linux** — `.deb` on **ubuntu-22.04**. Pinned on
    purpose: binaries link against the runner's glibc, so building on 24.04 would
-   exclude every 22.04 user.
-3. **build-macos** — `.dmg` on `macos-14` (aarch64) and `macos-13` (x86_64) in a
-   matrix. Both are needed; before this existed, Intel Mac users got no build at
-   all. Signing and notarization are gated on secrets and skip cleanly when unset.
+   exclude every 22.04 user. After building it runs
+   [verify-deb-metadata.sh](../../../.github/scripts/verify-deb-metadata.sh)
+   against the artifact, so store metadata cannot silently vanish.
+3. **build-macos** — `.dmg` on `macos-14` (aarch64) and `macos-15-intel`
+   (x86_64) in a matrix. Both are needed; before this existed, Intel Mac users
+   got no build at all. **Do not use `macos-13`** — GitHub retired it, and
+   `actionlint` will reject it. Signing and notarization are gated on secrets
+   and skip cleanly when unset.
 4. **publish** — downloads every artifact, generates `SHA256SUMS`, composes the
    body, and creates the release.
 
@@ -144,8 +224,8 @@ gh run watch --exit-status
 gh release view v1.1.0 --repo sudsarkar13/loudio
 ```
 
-Confirm the asset list carries all five files: `.deb`, `.AppImage`, two `.dmg`,
-and `SHA256SUMS`. Then install the **published** artifact — not your local
+Confirm the asset list carries all four files: `.deb`, two `.dmg`, and
+`SHA256SUMS`. Then install the **published** artifact — not your local
 build — and transcribe once:
 
 ```bash
@@ -187,3 +267,26 @@ re-push a tag that has already published assets; people may have downloaded them
   `~/snap/whisper-cpp/common/loudio` before invoking it. If you ever change
   where Loudio stores runtime files, re-check
   [`prepare_engine_workspace`](../../../src-tauri/src/transcription.rs).
+- **The Linux menu lives in two places.** GNOME has no global menu bar, so
+  [desktop-menu.ts](../../../lib/desktop-menu.ts) mirrors the app menu into a
+  tray AppIndicator and hides the in-window menu bar while compact mode is
+  active. The tray is best-effort: `libappindicator-sys` *dlopens*
+  `libayatana-appindicator3.so.1`, so a host without it degrades to the
+  in-window menu bar rather than failing to launch. That is why the
+  appindicator packages are `recommends` and not `depends` — promoting them
+  would make the package uninstallable on desktops that never needed them.
+  Verify a release candidate actually registers by running the app and checking
+  the item is listed:
+
+  ```bash
+  gdbus call --session --dest org.kde.StatusNotifierWatcher \
+    --object-path /StatusNotifierWatcher \
+    --method org.freedesktop.DBus.Properties.Get \
+    org.kde.StatusNotifierWatcher RegisteredStatusNotifierItems | grep -i loudio
+  ```
+
+  Duplicate entries, or an `IconName` pointing at a file that no longer exists
+  under `/run/user/$UID/tray-icon/`, mean concurrent callers each created a
+  tray and the dropped ones deleted the shared icon. `syncLinuxTrayMenu`
+  caches the creation promise to prevent exactly that; do not replace the cache
+  with a resolved-value check.

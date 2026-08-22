@@ -63,3 +63,28 @@ jobs:
 
       - name: Build
         run: yarn build
+
+  packaging:
+    name: Validate packaging metadata
+    runs-on: ubuntu-22.04
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Install AppStream and desktop-entry validators
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y appstream desktop-file-utils
+
+      # Guards the metadata GNOME Software / KDE Discover read. Without it the
+      # store page falls back to the bare dpkg fields and shows the app as
+      # "loudio" with a "(none)" description and an Unknown License warning.
+      - name: Validate AppStream and desktop entry
+        run: bash .github/scripts/validate-packaging.sh
+
+      # Advisory here: screenshots live on main and a feature branch may
+      # legitimately not have them yet. The release workflow enforces this.
+      - name: Check screenshot URLs (advisory)
+        run: bash .github/scripts/check-screenshots.sh --warn-only
