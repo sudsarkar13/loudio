@@ -216,3 +216,19 @@ pub fn current_recordings_output_dir(app: tauri::AppHandle) -> Result<String, St
 pub fn reveal_recordings_output_dir(app: tauri::AppHandle) -> Result<(), String> {
     crate::recordings::reveal_recordings_output_dir(&app)
 }
+
+/// Shows or hides the in-window menu bar.
+///
+/// Only meaningful on Linux and Windows, where Tauri packs the menu into the
+/// window itself. macOS keeps the menu app-wide in the system bar, so the
+/// frontend never calls this there.
+#[tauri::command]
+pub fn set_window_menu_visible(window: tauri::WebviewWindow, visible: bool) -> Result<(), String> {
+    let result = if visible {
+        window.show_menu()
+    } else {
+        window.hide_menu()
+    };
+
+    result.map_err(|error| error.to_string())
+}

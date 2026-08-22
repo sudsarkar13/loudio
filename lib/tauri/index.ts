@@ -43,9 +43,11 @@ export {
 	closeDesktopApp,
 	enterCompactWindowMode,
 	exitCompactWindowMode,
+	isLinuxDesktop,
 	minimizeDesktopAppWindow,
 	moveCompactWindowToAnchor,
 	persistCompactWindowPosition,
+	setDesktopMenuBarVisible,
 	startCompactWindowDrag,
 } from "@/lib/tauri/window";
 

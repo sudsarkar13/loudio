@@ -90,6 +90,7 @@ fn main() {
             commands::migrate_legacy_recordings,
             commands::current_recordings_output_dir,
             commands::reveal_recordings_output_dir,
+            commands::set_window_menu_visible,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

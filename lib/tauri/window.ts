@@ -3,7 +3,7 @@
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { LogicalPosition, LogicalSize } from "@tauri-apps/api/dpi";
 
-import { isTauriRuntime } from "@/lib/tauri/runtime";
+import { invokeCommand, isTauriRuntime } from "@/lib/tauri/runtime";
 import type {
 	CompactWindowAnchor,
 	StoredWindowPosition,
@@ -109,6 +109,30 @@ function wait(ms: number): Promise<void> {
 function isMacOS(): boolean {
 	if (typeof navigator === "undefined") return false;
 	return /mac/i.test(navigator.userAgent);
+}
+
+export function isLinuxDesktop(): boolean {
+	if (typeof navigator === "undefined") return false;
+	return isTauriRuntime() && /linux/i.test(navigator.userAgent);
+}
+
+/**
+ * Shows or hides the in-window menu bar.
+ *
+ * Linux and Windows draw the menu inside the window; macOS keeps it app-wide in
+ * the system bar, where hiding it would strip the menu with nothing to replace
+ * it. So this is a no-op off Linux.
+ */
+export async function setDesktopMenuBarVisible(
+	visible: boolean,
+): Promise<void> {
+	if (!isLinuxDesktop()) return;
+
+	try {
+		await invokeCommand<void>("set_window_menu_visible", { visible });
+	} catch {
+		// Menu visibility is cosmetic; never block the UI on it.
+	}
 }
 
 async function setWindowBackgroundColor(
