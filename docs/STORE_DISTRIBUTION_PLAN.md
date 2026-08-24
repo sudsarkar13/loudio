@@ -3,6 +3,10 @@
 > **Status:** planned, not started. No code changes made.
 > **Decision taken:** publish to **both** Flathub and the Snap Store.
 > **Prerequisite for both:** rename the application ID (see below).
+> **Confinement:** strict — decided, see Decisions.
+> **Build divergence:** accepted, with an install-flavour indicator — decided.
+> **Deferred:** the stage 4 model and the release-pipeline shape are recorded
+> below but explicitly **not** being acted on yet.
 
 ## Why this work exists
 
@@ -172,13 +176,80 @@ only adds the vendoring.
 7. Flathub: vendor cargo + npm, write the manifest, submit the PR
 8. CI: build both on tag, alongside the existing `.deb` and `.dmg`
 
-## Open questions
+## Decisions
 
-- Strict confinement, or classic if the engine staging proves intractable?
-- Does bundling engines make the `.deb`/`.dmg` builds inconsistent with the store
-  builds in a way users will notice and report as bugs?
-- How does this interact with [stage 4](STAGE_4_PLAN.md)? A bundled 253 MB Gemma
-  model lands in both packages, and Flathub would need it as a checksummed build
-  source rather than a runtime download.
-- Four artifacts per release instead of two. Does the release pipeline stay
-  maintainable, or does store publishing need to decouple from tag builds?
+### 1. Strict confinement — and no fallback plan for classic
+
+Everything Loudio does maps onto standard interfaces: `audio-record`, `network`,
+and the file portal for choosing audio. The confinement pain in v1.0.2 came from
+Loudio, running unconfined from a `.deb`, reaching *into* a confined
+`whisper-cpp` snap. Once both sides live inside the same snap that boundary does
+not exist, so the problem disappears rather than deepening.
+
+The deciding argument is that Flathub leaves no alternative. Flatpak is sandboxed
+with portals and has no classic equivalent, so the sandbox-compatible design has
+to be built regardless. Choosing classic for the snap would mean maintaining two
+architectures for no gain, and classic requires manual Canonical review that is
+routinely refused precisely when strict would work.
+
+Both packages use XDG portals for file access rather than broad `home`, since
+that is the part that ports between them. Escalate to classic only against a
+specific, named blocker — and record it here when it appears.
+
+### 2. Store and direct builds may diverge, but the app must say which it is
+
+Bundling engines everywhere is the wrong correction: it takes the `.deb` from
+6 MB to well over 100 MB, and a private ffmpeg copy inside a `.deb` duplicates a
+system package most users already have.
+
+The real problem is not that behaviour differs — it is not knowing which build a
+bug report came from. So Loudio detects its install flavour at runtime (the
+`SNAP` and `FLATPAK_ID` environment variables, or a build flag) and surfaces it
+in the readiness card, the About dialog, and any engine error message.
+"Engines: bundled" versus "Engines: system" turns an ambiguous report into a
+specific one.
+
+Revisit only on evidence: if the store builds prove materially more reliable,
+that is a real argument for bundling everywhere.
+
+## Deferred — recorded, not being acted on
+
+These two are settled enough to write down and deliberately left unexecuted.
+
+### 3. The stage 4 model: download rather than bundle
+
+[Stage 4](STAGE_4_PLAN.md) currently assumes a bundled 253 MB Gemma model. The
+argument against bundling is that **it does not actually buy offline-first,
+because the Whisper model still downloads.** Loudio is already unusable until its
+first model download finishes, so adding 253 MB to every artifact makes four
+downloads larger without changing that. Bundling only delivers
+offline-on-first-launch if the Whisper model is bundled too, which is a much
+larger decision.
+
+Meanwhile the download path already exists, is consent-gated, resumable and
+size-verified, and Flathub permits runtime *model* downloads — Buzz and Speech
+Note both do exactly this. Structuring is also off by default, so bundling would
+make every user download 253 MB for an optional feature.
+
+**Not decided. Revisit with stage 4.**
+
+### 4. Release pipeline shape
+
+Flathub decouples itself: their buildbot builds and publishes from the
+`flathub/<id>` repository after a push, with nothing built or uploaded from our
+CI. So this is three artifacts in the tag pipeline — `.deb`, `.dmg`, `.snap` —
+plus a Flathub repo updated after a release exists.
+
+The intended shape, when we get to it:
+
+- Snap builds on tag and publishes to **`beta`, never straight to `stable`**;
+  promotion is manual after verification. Snaps auto-update, so a broken
+  `stable` is far more damaging than a bad `.deb` sitting on a releases page.
+- The snap upload runs **after** the GitHub release publishes, as its own job, so
+  a store failure cannot block the `.deb` and `.dmg` from shipping.
+
+The risk is flake surface, not job count — as the `hdiutil` failure during the
+v1.0.3 release showed. That is already covered: the workflow is idempotent and
+re-runnable with `gh workflow run release.yml -f tag=…`.
+
+**Not decided. Revisit before any store publishing work starts.**
