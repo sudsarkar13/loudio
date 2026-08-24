@@ -130,6 +130,7 @@ Verified against the snaps installed on this machine:
 | `ffmpeg` | ✅ the `ffmpeg-2404` content snap is available (already installed here) |
 | `whisper.cpp` | ❌ build as a part — but **the snap build has network access**, so no vendoring |
 | Screenshots | ⚠️ see below |
+| Snap name | ✅ `loudio` registered 2026-08-24 to publisher `sudsarkar13`, public |
 
 Interfaces to declare: `audio-record`, `audio-playback`, `network`, `desktop`,
 `wayland`, `x11`, `opengl`, `home`, `removable-media`.
@@ -166,14 +167,13 @@ only adds the vendoring.
 2. Rename the application ID to `io.github.sudsarkar13.loudio`
 3. Make the readiness wizard conditional on install method
 4. Bundle `whisper.cpp`; take `ffmpeg` from the platform in each case
-5. Snap: `snapcraft.yaml`, register the `loudio` name, build, test under strict confinement
+5. Snap: `snapcraft.yaml`, build, test under strict confinement (name already registered)
 6. Snap: upload screenshots to the store listing
 7. Flathub: vendor cargo + npm, write the manifest, submit the PR
 8. CI: build both on tag, alongside the existing `.deb` and `.dmg`
 
 ## Open questions
 
-- Is the snap name `loudio` still available for registration?
 - Strict confinement, or classic if the engine staging proves intractable?
 - Does bundling engines make the `.deb`/`.dmg` builds inconsistent with the store
   builds in a way users will notice and report as bugs?
