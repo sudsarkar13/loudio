@@ -1,6 +1,6 @@
 ---
 name: release-manager
-description: Standard operating procedure for cutting a Loudio release — bumping the version across package.json, tauri.conf.json and Cargo.toml, writing the changelog and release notes, and the tag-driven CI/CD pipeline that builds the .deb and both .dmg architectures, then publishes the GitHub Release on the correct channel (Stable/RC/Beta/Alpha) with checksums and install instructions. ONLY activate this skill when the user explicitly requests or initiates a new version release or version bump.
+description: Standard operating procedure for cutting a Loudio release — bumping the version across package.json, tauri.conf.json and Cargo.toml, writing the changelog and release notes, and the tag-driven CI/CD pipeline that builds the .deb and the Apple Silicon .dmg, then publishes the GitHub Release on the correct channel (Stable/RC/Beta/Alpha) with checksums and install instructions. ONLY activate this skill when the user explicitly requests or initiates a new version release or version bump.
 ---
 
 # Release Manager Skill
@@ -206,9 +206,11 @@ The pipeline then runs:
    exclude every 22.04 user. After building it runs
    [verify-deb-metadata.sh](../../../.github/scripts/verify-deb-metadata.sh)
    against the artifact, so store metadata cannot silently vanish.
-3. **build-macos** — `.dmg` on `macos-14` (aarch64) and `macos-15-intel`
-   (x86_64) in a matrix. Both are needed; before this existed, Intel Mac users
-   got no build at all. **Do not use `macos-13`** — GitHub retired it, and
+3. **build-macos** — `.dmg` on `macos-14` (aarch64) only. Intel is deliberately
+   not built: Apple is ending Intel Mac support and macOS warns on launch that
+   the architecture is going away, so an x86_64 slice ships a deprecation
+   notice rather than a usable build. The matrix is kept so a second arch can
+   be re-added as one entry. **Do not use `macos-13`** — GitHub retired it, and
    `actionlint` will reject it. Signing and notarization are gated on secrets
    and skip cleanly when unset.
 4. **publish** — downloads every artifact, generates `SHA256SUMS`, composes the
@@ -224,8 +226,8 @@ gh run watch --exit-status
 gh release view v1.1.0 --repo sudsarkar13/loudio
 ```
 
-Confirm the asset list carries all four files: `.deb`, two `.dmg`, and
-`SHA256SUMS`. Then install the **published** artifact — not your local
+Confirm the asset list carries all three files: `.deb`, the aarch64 `.dmg`,
+and `SHA256SUMS`. Then install the **published** artifact — not your local
 build — and transcribe once:
 
 ```bash

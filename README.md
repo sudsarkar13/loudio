@@ -152,10 +152,13 @@ every artifact and publishes the GitHub Release:
 
 | Artifact | Platform |
 | :-- | :-- |
-| `Loudio_<version>_aarch64.dmg` | macOS, Apple Silicon |
-| `Loudio_<version>_x64.dmg` | macOS, Intel |
+| `Loudio_<version>_aarch64.dmg` | macOS, Apple Silicon (M1 and later) |
 | `Loudio_<version>_amd64.deb` | Ubuntu / Debian |
 | `SHA256SUMS` | checksums for all of the above |
+
+Intel Macs are not built for. Apple is ending Intel support in macOS, and an
+x86_64 build warns on launch that its architecture is going away, so shipping
+one would hand users a deprecation notice rather than a working option.
 
 The channel comes from the tag — `v1.1.0` is Stable, while `v1.1.0-rc.1`,
 `v1.1.0-beta.1` and `v1.1.0-alpha.1` publish as prereleases and are never marked

@@ -20,7 +20,6 @@ asset() {
 
 DEB=$(asset '*.deb')
 DMG_ARM=$(asset '*aarch64.dmg')
-DMG_X64=$(asset '*x64.dmg')
 
 if [ -f RELEASE_NOTES.md ]; then
   cat RELEASE_NOTES.md
@@ -34,7 +33,6 @@ echo
 echo "| Platform | File |"
 echo "| :-- | :-- |"
 [ -n "$DMG_ARM" ]  && echo "| macOS — Apple Silicon (M1/M2/M3/M4) | [\`$DMG_ARM\`]($BASE/$DMG_ARM) |"
-[ -n "$DMG_X64" ]  && echo "| macOS — Intel | [\`$DMG_X64\`]($BASE/$DMG_X64) |"
 [ -n "$DEB" ]      && echo "| Ubuntu / Debian | [\`$DEB\`]($BASE/$DEB) |"
 echo "| Checksums | [\`SHA256SUMS\`]($BASE/SHA256SUMS) |"
 echo
@@ -67,9 +65,12 @@ everything after it runs offline.
 INSTALL
 fi
 
-if [ -n "$DMG_ARM" ] || [ -n "$DMG_X64" ]; then
+if [ -n "$DMG_ARM" ]; then
   cat <<'INSTALL'
 ### macOS
+
+Apple Silicon only (M1 and later). Intel Macs are no longer supported, because
+Apple is ending Intel support in macOS.
 
 Open the `.dmg` and drag Loudio to Applications. Builds are unsigned unless
 release signing is configured, so the first launch needs

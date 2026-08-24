@@ -247,10 +247,10 @@ jobs:
         include:
           - runner: macos-14
             arch: aarch64
-          # Intel Macs get no build at all without this runner. macos-13 was
-          # retired by GitHub; macos-15-intel is the current Intel image.
-          - runner: macos-15-intel
-            arch: x86_64
+          # Intel (x86_64) is deliberately not built. Apple is ending Intel Mac
+          # support, and macOS warns on launch that the architecture is going
+          # away, so shipping an x86_64 slice only produces that warning. Add a
+          # `runner: macos-15-intel / arch: x86_64` entry here to bring it back.
 
     steps:
       - name: Checkout tagged commit
