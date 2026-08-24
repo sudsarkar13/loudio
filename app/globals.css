@@ -2246,3 +2246,9 @@ summary:focus-visible {
 	font-size: 0.86rem;
 	line-height: 1.5;
 }
+
+/* Shown only when a strictly newer stable release is on offer. */
+.readiness-update {
+	color: var(--accent, #4da3ff);
+	font-weight: 600;
+}

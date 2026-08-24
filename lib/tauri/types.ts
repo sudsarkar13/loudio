@@ -50,6 +50,8 @@ export interface ReadinessCheck {
 	manualCommand: string | null;
 	detail: string | null;
 	platformSupported: boolean;
+	/** Newer stable release on offer, or null when already current. */
+	available: string | null;
 }
 
 export interface ReadinessReport {

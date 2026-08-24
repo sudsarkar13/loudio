@@ -56,6 +56,10 @@ pub struct ReadinessCheck {
     pub manual_command: Option<String>,
     pub detail: Option<String>,
     pub platform_supported: bool,
+    /// Newest **stable** release offered by this platform's package manager.
+    /// `None` when nothing newer is on offer, or when the channel could not be
+    /// read. Pre-release channels are never consulted.
+    pub available: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -182,6 +186,7 @@ async fn check_ffmpeg(app: &AppHandle) -> ReadinessCheck {
             manual_command: None,
             detail: Some("Unsupported operating system.".to_string()),
             platform_supported: false,
+            available: None,
         };
     }
 
@@ -216,8 +221,12 @@ async fn check_ffmpeg(app: &AppHandle) -> ReadinessCheck {
                 manual_command: Some(manual_command_for("ffmpeg", "update")),
                 detail: Some("Installed FFmpeg is older than the recommended minimum.".to_string()),
                 platform_supported: true,
+                available: None,
             };
         }
+
+        let available =
+            stable_update_for(version.as_deref(), "ffmpeg", "ffmpeg", Some("ffmpeg")).await;
 
         return ReadinessCheck {
             id,
@@ -231,6 +240,7 @@ async fn check_ffmpeg(app: &AppHandle) -> ReadinessCheck {
             manual_command: None,
             detail: None,
             platform_supported: true,
+            available,
         };
     }
 
@@ -246,7 +256,71 @@ async fn check_ffmpeg(app: &AppHandle) -> ReadinessCheck {
         manual_command: Some(manual_command_for("ffmpeg", "install")),
         detail: None,
         platform_supported: true,
+        available: None,
     }
+}
+
+/// Runs `<bin> --version` and returns the parsed whisper.cpp version.
+async fn whisper_cpp_installed_version(bin: &str) -> Option<String> {
+    let output = Command::new(bin).arg("--version").output().await.ok()?;
+    // whisper-cli prints its banner on stderr on some builds.
+    let text = format!(
+        "{}{}",
+        String::from_utf8_lossy(&output.stdout),
+        String::from_utf8_lossy(&output.stderr)
+    );
+    crate::versions::parse_whisper_cpp_version(&text)
+}
+
+/// Newest stable release of a package, per this platform's package manager.
+///
+/// Only stable channels are consulted. On Linux the snap's beta and edge rows
+/// frequently carry a higher version than stable, and following them would
+/// install a pre-release build behind the user's back.
+async fn stable_candidate_for(snap: &str, formula: &str, apt: Option<&str>) -> Option<String> {
+    if cfg!(target_os = "macos") {
+        let output = Command::new("brew")
+            .args(["info", "--json=v2", formula])
+            .output()
+            .await
+            .ok()?;
+        return crate::versions::parse_brew_stable_version(&String::from_utf8_lossy(
+            &output.stdout,
+        ));
+    }
+
+    if let Some(package) = apt {
+        if let Ok(output) = Command::new("apt-cache")
+            .args(["policy", package])
+            .output()
+            .await
+        {
+            if let Some(candidate) =
+                crate::versions::parse_apt_candidate(&String::from_utf8_lossy(&output.stdout))
+            {
+                return Some(candidate);
+            }
+        }
+    }
+
+    let output = Command::new("snap")
+        .args(["info", snap])
+        .output()
+        .await
+        .ok()?;
+    crate::versions::parse_snap_stable_version(&String::from_utf8_lossy(&output.stdout))
+}
+
+/// The candidate to advertise, or `None` when it is not a newer stable release.
+async fn stable_update_for(
+    current: Option<&str>,
+    snap: &str,
+    formula: &str,
+    apt: Option<&str>,
+) -> Option<String> {
+    let current = current?;
+    let candidate = stable_candidate_for(snap, formula, apt).await?;
+    crate::versions::stable_update_available(current, &candidate).then_some(candidate)
 }
 
 async fn check_whisper_cpp(app: &AppHandle) -> ReadinessCheck {
@@ -254,18 +328,25 @@ async fn check_whisper_cpp(app: &AppHandle) -> ReadinessCheck {
     emit_progress(app, &id, 5, "Detecting whisper.cpp…", false, false);
 
     if let Some(bin) = detect_whisper_cli(None).await {
+        // Report the version, not the binary path: the path told the user
+        // nothing about whether the engine was current.
+        let installed = whisper_cpp_installed_version(&bin).await;
+        let available =
+            stable_update_for(installed.as_deref(), "whisper-cpp", "whisper-cpp", None).await;
+
         return ReadinessCheck {
             id,
             name: "whisper.cpp".to_string(),
             description: "Primary local transcription engine (fast C++ runtime).".to_string(),
             required: ">=1.5.0".to_string(),
-            current: Some(bin),
+            current: Some(installed.unwrap_or(bin)),
             state: ReadinessState::Installed,
             action_kind: ReadinessActionKind::None,
             severity: ReadinessSeverity::Required,
             manual_command: None,
             detail: None,
             platform_supported: true,
+            available,
         };
     }
 
@@ -281,6 +362,7 @@ async fn check_whisper_cpp(app: &AppHandle) -> ReadinessCheck {
         manual_command: Some(manual_command_for("whisper-cpp", "install")),
         detail: None,
         platform_supported: true,
+        available: None,
     }
 }
 
@@ -308,6 +390,7 @@ async fn check_python(app: &AppHandle) -> ReadinessCheck {
                 manual_command: None,
                 detail: None,
                 platform_supported: true,
+                available: None,
             };
         }
     }
@@ -324,6 +407,7 @@ async fn check_python(app: &AppHandle) -> ReadinessCheck {
         manual_command: Some(manual_command_for("python", "install")),
         detail: None,
         platform_supported: true,
+        available: None,
     }
 }
 
@@ -344,6 +428,7 @@ async fn check_openai_whisper(app: &AppHandle) -> ReadinessCheck {
             manual_command: None,
             detail: None,
             platform_supported: true,
+            available: None,
         };
     }
 
@@ -365,6 +450,7 @@ async fn check_openai_whisper(app: &AppHandle) -> ReadinessCheck {
                 manual_command: None,
                 detail: None,
                 platform_supported: true,
+                available: None,
             };
         }
     }
@@ -381,6 +467,7 @@ async fn check_openai_whisper(app: &AppHandle) -> ReadinessCheck {
         manual_command: Some(manual_command_for("openai-whisper", "install")),
         detail: None,
         platform_supported: true,
+        available: None,
     }
 }
 
@@ -405,6 +492,7 @@ async fn check_models_dir(app: &AppHandle) -> ReadinessCheck {
                     manual_command: None,
                     detail: None,
                     platform_supported: true,
+                    available: None,
                 }
             } else {
                 ReadinessCheck {
@@ -420,6 +508,7 @@ async fn check_models_dir(app: &AppHandle) -> ReadinessCheck {
                     manual_command: Some(manual_command_for("models-dir", "install")),
                     detail: None,
                     platform_supported: true,
+                    available: None,
                 }
             }
         }
@@ -435,6 +524,7 @@ async fn check_models_dir(app: &AppHandle) -> ReadinessCheck {
             manual_command: Some(manual_command_for("models-dir", "install")),
             detail: Some(error.to_string()),
             platform_supported: true,
+            available: None,
         },
     }
 }

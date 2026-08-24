@@ -180,6 +180,11 @@ export function ReadinessCheckCard({
 						<span className="readiness-required">
 							Required: {check.required}
 						</span>
+						{check.available ?
+							<span className="readiness-update">
+								Stable update: {check.available}
+							</span>
+						:	null}
 						{check.current ?
 							<span className="readiness-current">
 								Current: {check.current}

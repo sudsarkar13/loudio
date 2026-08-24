@@ -147,12 +147,9 @@ pub async fn transcribe_microphone_audio(
         input_path.with_extension("wav")
     };
 
-    if let Err(error) =
-        crate::binaries::convert_audio_to_wav_16k(&input_path, &prepared_path).await
+    if let Err(error) = crate::binaries::convert_audio_to_wav_16k(&input_path, &prepared_path).await
     {
-        let message = format!(
-            "Failed to convert microphone audio before transcription: {error:#}"
-        );
+        let message = format!("Failed to convert microphone audio before transcription: {error:#}");
         emit_transcription_progress(&app, None, message.clone(), true, true);
         return Err(message);
     }

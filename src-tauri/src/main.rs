@@ -11,6 +11,7 @@ mod process;
 mod recordings;
 mod system_readiness;
 mod transcription;
+mod versions;
 
 #[cfg(target_os = "linux")]
 fn allow_linux_microphone_requests(webview_window: &tauri::WebviewWindow) -> tauri::Result<()> {

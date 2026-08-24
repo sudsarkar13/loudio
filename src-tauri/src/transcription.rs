@@ -193,9 +193,8 @@ fn prepare_engine_workspace(
         .and_then(|name| name.to_str())
         .unwrap_or("model.bin");
 
-    let audio = stage_file(audio_path, &staging, audio_name).with_context(|| {
-        format!("Failed to stage audio for the snap-confined {snap} engine")
-    })?;
+    let audio = stage_file(audio_path, &staging, audio_name)
+        .with_context(|| format!("Failed to stage audio for the snap-confined {snap} engine"))?;
     let model = stage_file(model_path, &staging, model_name).with_context(|| {
         format!("Failed to stage the whisper model for the snap-confined {snap} engine")
     })?;
