@@ -1,0 +1,84 @@
+# Flatpak manifest for Loudio.
+#
+# Like the snap, this bundles the transcription engines rather than asking the
+# user to install them: Flathub rejects apps that "rely on host components or
+# complicated post installation setups for core functionality", which is exactly
+# what the readiness wizard does on the .deb. FFmpeg comes free — the GNOME
+# runtime already ships the binary — so only whisper.cpp is built here.
+#
+# Model downloads at run time are fine and are why --share=network is requested;
+# the prohibition covers executables, not data. Buzz and Speech Note both ship
+# on Flathub doing the same thing.
+#
+# NOTE: the `--share=network` build-option on the loudio module is for LOCAL
+# iteration only. Flathub builds offline, so a submission must replace it with
+# generated cargo and node sources. See docs/STORE_DISTRIBUTION_PLAN.md.
+
+app-id: io.github.sudsarkar13.loudio
+runtime: org.gnome.Platform
+runtime-version: '49'
+sdk: org.gnome.Sdk
+command: loudio
+
+sdk-extensions:
+  - org.freedesktop.Sdk.Extension.rust-stable
+  - org.freedesktop.Sdk.Extension.node24
+
+build-options:
+  append-path: /usr/lib/sdk/rust-stable/bin:/usr/lib/sdk/node24/bin
+  env:
+    CARGO_HOME: /run/build/loudio/cargo
+
+finish-args:
+  - --socket=wayland
+  - --socket=fallback-x11
+  - --share=ipc
+  - --device=dri
+  - --socket=pulseaudio          # microphone capture and playback
+  - --share=network              # Whisper model downloads only
+  # No blanket --filesystem: audio files are opened through the file chooser
+  # portal, which grants access per file rather than to the whole home dir.
+
+modules:
+  - name: whisper-cpp
+    buildsystem: cmake-ninja
+    config-opts:
+      - -DCMAKE_BUILD_TYPE=Release
+      - -DBUILD_SHARED_LIBS=OFF
+      - -DWHISPER_BUILD_TESTS=OFF
+      - -DWHISPER_BUILD_EXAMPLES=ON
+      - -DWHISPER_BUILD_SERVER=OFF
+    sources:
+      - type: archive
+        url: https://github.com/ggml-org/whisper.cpp/archive/refs/tags/v1.9.3.tar.gz
+        sha256: 1650f884effba487025143bd8facd2f9fb40a83b3737a732803c67a8d659d9c0
+    post-install:
+      # Keep only what Loudio invokes; the rest of the examples are dead weight.
+      - install -Dm755 bin/whisper-cli /app/bin/whisper-cli || true
+      - find /app/bin -maxdepth 1 -type f ! -name whisper-cli ! -name loudio -delete || true
+
+  - name: loudio
+    buildsystem: simple
+    build-options:
+      # LOCAL ONLY — Flathub builds have no network. Replace with generated
+      # offline sources before submitting.
+      build-args:
+        - --share=network
+    build-commands:
+      - corepack enable
+      - corepack prepare "yarn@$(node -p 'require(\"./package.json\").packageManager.split(\"@\")[1]')" --activate
+      - yarn install --immutable
+      - yarn build
+      - cargo build --release --manifest-path src-tauri/Cargo.toml --offline || cargo build --release --manifest-path src-tauri/Cargo.toml
+      - install -Dm755 src-tauri/target/release/loudio /app/bin/loudio
+      - install -Dm644 src-tauri/appstream/io.github.sudsarkar13.loudio.metainfo.xml
+          /app/share/metainfo/io.github.sudsarkar13.loudio.metainfo.xml
+      - install -Dm644 flatpak/io.github.sudsarkar13.loudio.desktop
+          /app/share/applications/io.github.sudsarkar13.loudio.desktop
+      - install -Dm644 src-tauri/icons/128x128.png
+          /app/share/icons/hicolor/128x128/apps/io.github.sudsarkar13.loudio.png
+      - install -Dm644 src-tauri/icons/icon.png
+          /app/share/icons/hicolor/512x512/apps/io.github.sudsarkar13.loudio.png
+    sources:
+      - type: dir
+        path: ..

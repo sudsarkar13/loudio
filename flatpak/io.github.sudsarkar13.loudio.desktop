@@ -1,0 +1,11 @@
+[Desktop Entry]
+Type=Application
+Name=Loudio
+Comment=Offline transcription studio for audio files and microphone recordings
+Exec=loudio
+Icon=io.github.sudsarkar13.loudio
+Terminal=false
+StartupNotify=true
+StartupWMClass=loudio
+Categories=AudioVideo;Audio;
+Keywords=transcription;transcribe;speech;text;dictation;subtitles;whisper;offline;audio;

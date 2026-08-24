@@ -10,3 +10,5 @@ yarn-error.log
 /src-tauri/gen
 /src-tauri/.cargo
 out
+# flatpak-builder's cache — 11 GB after a single build
+flatpak/.flatpak-builder/

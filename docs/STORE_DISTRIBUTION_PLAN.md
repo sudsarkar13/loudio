@@ -170,14 +170,28 @@ only adds the vendoring.
 
 1. ~~Extend `settings.json` migration to cover renamed bundle IDs~~ — **done**,
    along with a persist-on-mount bug that was overwriting stored settings with
-   defaults before anything read them
-2. Rename the application ID to `io.github.sudsarkar13.loudio` ← **next**
-3. Make the readiness wizard conditional on install method
-4. Bundle `whisper.cpp`; take `ffmpeg` from the platform in each case
-5. Snap: `snapcraft.yaml`, build, test under strict confinement (name already registered)
+   defaults before anything read them, and a `runtime/` move so the rename does
+   not strand a multi-gigabyte virtualenv and the downloaded models
+2. ~~Rename the application ID to `io.github.sudsarkar13.loudio`~~ — **done**
+3. ~~Make the readiness wizard conditional on install method~~ — **done**
+4. ~~Bundle `whisper.cpp`; take `ffmpeg` from the platform in each case~~ —
+   **done**; binary resolution prefers bundled copies inside a sandbox
+5. Snap: **builds in CI** — an 87 MB snap carrying `loudio`, `whisper-cli` and
+   `ffmpeg`. Still to do: run it under strict confinement and transcribe once
 6. Snap: upload screenshots to the store listing
-7. Flathub: vendor cargo + npm, write the manifest, submit the PR
-8. CI: build both on tag, alongside the existing `.deb` and `.dmg`
+7. Flathub: manifest written and building locally; **still needs offline
+   vendoring** — 538 crates and the Yarn Berry cache — before it can be submitted
+8. ~~CI: build both on tag~~ — snap builds on every push and publishes to `beta`
+   after the GitHub release; Flathub builds on its own infrastructure
+
+### Note on the snap toolchain
+
+`build-snaps: [rustup]` cannot be used with the `gnome` extension. The extension
+puts its SDK ahead of the system on `LD_LIBRARY_PATH`, and a snap-provided
+binary built against a different glibc then dies with `undefined symbol:
+__nptl_change_stack_perm, version GLIBC_PRIVATE`. Node and Rust are downloaded
+into the part's build directory instead. The archive's `rustc` is not an option
+either: core24 ships 1.75 and `Cargo.toml` requires 1.77.
 
 ## Decisions
 

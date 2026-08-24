@@ -34,6 +34,12 @@
     match the component id. `launchable` is the supported way to bind them.
   -->
   <launchable type="desktop-id">Loudio.desktop</launchable>
+  <!--
+    The Flatpak names its desktop file after the app id, as Flathub requires,
+    while the .deb keeps the name Tauri generates from productName. Both are
+    declared so the component resolves whichever package is installed.
+  -->
+  <launchable type="desktop-id">io.github.sudsarkar13.loudio.desktop</launchable>
 
   <description>
     <p>
