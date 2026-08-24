@@ -11,7 +11,7 @@ use crate::{
 ///
 /// Adding a new historical bundle id here is the supported way to keep old
 /// microphone recordings discoverable after a product rename.
-const KNOWN_BUNDLE_IDS: &[&str] = &[
+pub(crate) const KNOWN_BUNDLE_IDS: &[&str] = &[
     "com.lexprotech.loudio",
     "com.loudio.app",
     "com.loudio.desktop",
@@ -22,7 +22,7 @@ const KNOWN_BUNDLE_IDS: &[&str] = &[
 /// installation. We use these as a fallback in case the running binary uses a
 /// bundle id that isn't in [`KNOWN_BUNDLE_IDS`] yet (e.g. a developer's local
 /// fork), so we never silently strand microphone recordings on disk.
-const LOUDIO_DIR_HINTS: &[&str] = &["loudio"];
+pub(crate) const LOUDIO_DIR_HINTS: &[&str] = &["loudio"];
 
 /// Lists microphone recordings stored in the app's output directory.
 ///
@@ -191,7 +191,7 @@ pub fn delete_microphone_recording(
 
 /// Returns the platform-specific parent directory that holds per-bundle app
 /// data folders (e.g. `~/Library/Application Support` on macOS).
-fn platform_app_support_root() -> Option<PathBuf> {
+pub(crate) fn platform_app_support_root() -> Option<PathBuf> {
     #[cfg(target_os = "macos")]
     {
         std::env::var_os("HOME").map(|home| {

@@ -46,6 +46,17 @@ export function useRuntimeBootstrap({
 
 	const bootstrapProgressUnlistenRef = useRef<(() => void) | null>(null);
 
+	/**
+	 * Whether settings have been read from disk yet.
+	 *
+	 * `settings` starts as the defaults, and the persist effect below fires on
+	 * mount. Loading is gated behind the EULA check, so without this the
+	 * defaults were written over the stored settings before anything read them
+	 * — losing them outright for anyone who quit at the EULA screen, and
+	 * immediately undoing the bundle-id migration that runs at startup.
+	 */
+	const hasLoadedSettingsRef = useRef<boolean>(false);
+
 	useEffect(() => {
 		if (isCheckingEula || !hasAcceptedEula || hasCompletedRuntimeSetup) {
 			return;
@@ -76,6 +87,7 @@ export function useRuntimeBootstrap({
 				if (!mounted) return;
 
 				setSettings(mergeSettings(saved));
+				hasLoadedSettingsRef.current = true;
 				setProfiles(runtimeProfiles);
 				setRuntimeBootstrapPercent(100);
 				setRuntimeBootstrapMessage(runtimeMessage);
@@ -105,6 +117,9 @@ export function useRuntimeBootstrap({
 	}, [hasAcceptedEula, hasCompletedRuntimeSetup, isCheckingEula, setStatus]);
 
 	useEffect(() => {
+		// Only persist once the stored settings have been read, so the initial
+		// defaults never overwrite them.
+		if (!hasLoadedSettingsRef.current) return;
 		void savePersistedSettings(settings);
 	}, [settings]);
 

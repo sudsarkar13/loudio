@@ -9,6 +9,7 @@ mod models;
 mod paths;
 mod process;
 mod recordings;
+mod settings_migration;
 mod system_readiness;
 mod transcription;
 mod versions;
@@ -65,6 +66,18 @@ fn main() {
         .plugin(tauri_plugin_fs::init())
         .plugin(tauri_plugin_clipboard_manager::init())
         .setup(|app| {
+            // Runs before the webview exists, which is the point. The frontend
+            // persists its default settings as soon as it mounts, so anything
+            // that migrates settings has to be finished before that first save
+            // lands — otherwise the defaults are already on disk and a renamed
+            // install looks like a first run.
+            if let Some(source) = crate::settings_migration::adopt_legacy_settings(app.handle()) {
+                eprintln!(
+                    "Adopted settings from a previous install: {}",
+                    source.display()
+                );
+            }
+
             #[cfg(target_os = "linux")]
             if let Some(webview_window) = app.get_webview_window("main") {
                 allow_linux_microphone_requests(&webview_window)?;
