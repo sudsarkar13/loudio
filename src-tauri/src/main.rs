@@ -5,11 +5,12 @@ use tauri::Manager;
 mod binaries;
 mod bootstrap;
 mod commands;
+mod install_flavor;
+mod legacy_migration;
 mod models;
 mod paths;
 mod process;
 mod recordings;
-mod settings_migration;
 mod system_readiness;
 mod transcription;
 mod versions;
@@ -71,9 +72,18 @@ fn main() {
             // that migrates settings has to be finished before that first save
             // lands — otherwise the defaults are already on disk and a renamed
             // install looks like a first run.
-            if let Some(source) = crate::settings_migration::adopt_legacy_settings(app.handle()) {
+            if let Some(source) = crate::legacy_migration::adopt_legacy_settings(app.handle()) {
                 eprintln!(
                     "Adopted settings from a previous install: {}",
+                    source.display()
+                );
+            }
+
+            // Before anything calls runtime_dir(), which would create the empty
+            // scaffolding this looks for the absence of.
+            if let Some(source) = crate::legacy_migration::adopt_legacy_runtime(app.handle()) {
+                eprintln!(
+                    "Moved the runtime directory from a previous install: {}",
                     source.display()
                 );
             }
@@ -87,6 +97,7 @@ fn main() {
         })
         .invoke_handler(tauri::generate_handler![
             commands::get_runtime_profiles,
+            install_flavor::get_install_info,
             commands::load_settings,
             commands::save_settings,
             bootstrap::bootstrap_runtime,

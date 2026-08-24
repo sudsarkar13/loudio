@@ -740,6 +740,7 @@ pub async fn check_system_readiness(
     force_full: Option<bool>,
 ) -> Result<ReadinessReport, String> {
     let mut report = build_report(&app).await;
+    apply_bundled_engine_state(&mut report);
     let skipped = load_skipped(&app);
     apply_skipped_state(&mut report, &skipped);
 
@@ -755,6 +756,33 @@ pub async fn check_system_readiness(
     }
 
     Ok(report)
+}
+
+/// Engine checks the store packages satisfy themselves.
+const BUNDLED_ENGINE_IDS: &[&str] = &["ffmpeg", "whisper-cpp", "python", "openai-whisper"];
+
+/// Strips install and update actions when the engines ship inside the package.
+///
+/// A snap or Flatpak has no `apt`, `brew` or `snap` of its own to call, so an
+/// Install button there could only fail. The checks stay visible — knowing which
+/// engine is in use is still worth showing — but they become informational.
+fn apply_bundled_engine_state(report: &mut ReadinessReport) {
+    if !crate::install_flavor::detect().engines_are_bundled() {
+        return;
+    }
+
+    for item in report.items.iter_mut() {
+        if !BUNDLED_ENGINE_IDS.contains(&item.id.as_str()) {
+            continue;
+        }
+        item.action_kind = ReadinessActionKind::None;
+        item.manual_command = None;
+        item.available = None;
+        item.detail = Some(
+            "Bundled with this build of Loudio; it updates when the app does."
+                .to_string(),
+        );
+    }
 }
 
 fn all_required_pass(report: &ReadinessReport) -> bool {

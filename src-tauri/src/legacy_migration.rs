@@ -1,4 +1,4 @@
-//! Carries `settings.json` across bundle identifier changes.
+//! Carries a previous bundle identifier's data forward.
 //!
 //! Tauri derives the per-user data directory from the bundle identifier, so
 //! renaming it moves that directory and the app starts from an empty state.
@@ -10,7 +10,11 @@
 //! discards everything the user has taught the app — silently, because an empty
 //! settings file looks exactly like a first run.
 
-use std::{fs, path::PathBuf, time::SystemTime};
+use std::{
+    fs,
+    path::{Path, PathBuf},
+    time::SystemTime,
+};
 
 use crate::{
     models::AppSettings,
@@ -111,6 +115,105 @@ pub fn adopt_legacy_settings(app: &tauri::AppHandle) -> Option<PathBuf> {
     Some(source)
 }
 
+/// Whether a `runtime` directory holds anything worth keeping.
+///
+/// "Effectively empty" means no Python environment and no downloaded models —
+/// i.e. only the empty scaffolding [`crate::paths::runtime_dir`] creates on
+/// first use. Such a directory can be replaced; anything else must not be.
+pub fn runtime_dir_is_disposable(runtime: &Path) -> bool {
+    if !runtime.exists() {
+        return true;
+    }
+    if runtime.join("python-venv").is_dir() {
+        return false;
+    }
+    for sub in ["models", "output"] {
+        let dir = runtime.join(sub);
+        if let Ok(entries) = fs::read_dir(&dir) {
+            if entries.flatten().any(|entry| {
+                entry.path().is_file() || entry.path().is_dir()
+            }) {
+                return false;
+            }
+        }
+    }
+    true
+}
+
+/// Moves a previous bundle id's `runtime` directory to the current one.
+///
+/// Moved rather than copied, deliberately. This directory holds the Python
+/// environment and the downloaded Whisper models — on a real install that is
+/// several gigabytes, so copying would double it on disk for no benefit. A
+/// rename within the same data root is instant and costs nothing.
+///
+/// Without this a rename would report the engines as missing and offer to
+/// rebuild the environment and re-download every model, even though both are
+/// sitting on disk under the old id.
+///
+/// Returns the directory it moved from.
+pub fn adopt_legacy_runtime(app: &tauri::AppHandle) -> Option<PathBuf> {
+    let data_dir = crate::paths::app_data_dir(app).ok()?;
+    let target = data_dir.join("runtime");
+
+    // Never replace a runtime that already holds real state.
+    if !runtime_dir_is_disposable(&target) {
+        return None;
+    }
+
+    let support_root = platform_app_support_root()?;
+    let current = data_dir.canonicalize().ok();
+
+    let mut names: std::collections::BTreeSet<String> =
+        KNOWN_BUNDLE_IDS.iter().map(|id| id.to_string()).collect();
+    if let Ok(entries) = fs::read_dir(&support_root) {
+        for entry in entries.flatten() {
+            if !entry.path().is_dir() {
+                continue;
+            }
+            if let Some(name) = entry.path().file_name().and_then(|v| v.to_str()) {
+                if LOUDIO_DIR_HINTS
+                    .iter()
+                    .any(|hint| name.to_ascii_lowercase().contains(hint))
+                {
+                    names.insert(name.to_string());
+                }
+            }
+        }
+    }
+
+    for name in names {
+        let dir = support_root.join(&name);
+        if let (Some(current), Some(candidate)) = (&current, &dir.canonicalize().ok()) {
+            if current == candidate {
+                continue;
+            }
+        }
+        let source = dir.join("runtime");
+        if !source.is_dir() || runtime_dir_is_disposable(&source) {
+            continue;
+        }
+
+        // The empty scaffolding, if any, has to go before a rename can land.
+        if target.exists() && fs::remove_dir_all(&target).is_err() {
+            continue;
+        }
+        match fs::rename(&source, &target) {
+            Ok(()) => return Some(source),
+            Err(error) => {
+                // Most likely a cross-device link. Leave the old directory
+                // alone rather than starting a multi-gigabyte copy.
+                eprintln!(
+                    "Could not move {} into place ({error}); leaving it where it is.",
+                    source.display()
+                );
+                return None;
+            }
+        }
+    }
+    None
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -172,6 +275,36 @@ mod tests {
 
         assert_eq!(pick_legacy_settings(&[old.clone()]), Some(old));
         fs::remove_dir_all(&dir).ok();
+    }
+
+    #[test]
+    fn an_absent_or_scaffold_only_runtime_is_disposable() {
+        let root = std::env::temp_dir().join(format!("loudio-rt-{}", std::process::id()));
+        let runtime = root.join("runtime");
+        assert!(runtime_dir_is_disposable(&runtime), "absent should be disposable");
+
+        // What runtime_dir() creates on first use, and nothing more.
+        fs::create_dir_all(runtime.join("models")).unwrap();
+        fs::create_dir_all(runtime.join("output")).unwrap();
+        assert!(runtime_dir_is_disposable(&runtime), "empty scaffolding");
+
+        fs::remove_dir_all(&root).ok();
+    }
+
+    #[test]
+    fn a_runtime_holding_models_or_a_venv_is_never_disposable() {
+        let root = std::env::temp_dir().join(format!("loudio-rt2-{}", std::process::id()));
+        let runtime = root.join("runtime");
+        fs::create_dir_all(runtime.join("models")).unwrap();
+        write(&runtime.join("models"), "ggml-small.bin", "not really a model");
+        assert!(!runtime_dir_is_disposable(&runtime), "a downloaded model counts");
+
+        fs::remove_dir_all(&root).ok();
+
+        let runtime = root.join("runtime");
+        fs::create_dir_all(runtime.join("python-venv").join("bin")).unwrap();
+        assert!(!runtime_dir_is_disposable(&runtime), "a venv counts");
+        fs::remove_dir_all(&root).ok();
     }
 
     #[test]
