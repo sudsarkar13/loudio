@@ -107,6 +107,23 @@
   </screenshots>
 
   <releases>
+    <release version="1.0.3" date="2026-08-24">
+      <url>https://github.com/sudsarkar13/loudio/releases/tag/v1.0.3</url>
+      <description>
+        <p>
+          Transcription can be taught the words you actually use, and the app
+          keeps its external engines up to date without ever installing a
+          pre-release.
+        </p>
+        <ul>
+          <li>Steer transcription toward your own technical vocabulary</li>
+          <li>Learn a correction once and apply it to every later transcript</li>
+          <li>Offer engine updates only when a newer stable version exists</li>
+          <li>Install those updates only after you explicitly consent</li>
+          <li>Recognise every Apple Silicon generation, not a fixed list</li>
+        </ul>
+      </description>
+    </release>
     <release version="1.0.2" date="2026-08-22">
       <url>https://github.com/sudsarkar13/loudio/releases/tag/v1.0.2</url>
       <description>

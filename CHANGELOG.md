@@ -6,6 +6,47 @@ publish a tag with no matching section.
 
 ## [Unreleased]
 
+## [v1.0.3] - 2026-08-24
+
+### 🚀 Highlights & Features
+- **Transcription can be taught your vocabulary.** Settings takes a list of terms
+  you actually use — product names, tools, acronyms — and they are fed to the
+  engine as an initial prompt that is carried across every audio window. This
+  steers decoding *before* the mistake happens, so "supabase" stops arriving as
+  "super base".
+- **Corrections are learned once and reused.** Editing a transcript proposes the
+  change as a `heard → intended` pair; confirming it stores the pair and applies
+  it to every later transcript. Confirming the same correction again raises its
+  weight instead of storing a duplicate. Nothing is learned without confirmation.
+- **Engine updates are detected, but only stable ones.** Loudio compares the
+  installed `whisper.cpp` and FFmpeg against what the platform's package manager
+  offers and reports an update only when the candidate is both a stable release
+  and strictly newer. Snap channels are read from `latest/stable` alone, so a
+  beta revision is never offered as an upgrade and a downgrade is never proposed
+  as one.
+- **Updates install only with consent.** An available update is shown, never
+  applied. Installing takes a deliberate two-step confirmation in the readiness
+  card.
+
+### 🐛 Fixed Bugs & Issues
+- Apple Silicon detection matched a hardcoded list of families, so an M5 reported
+  as unknown and an M10 would have been read as an M1. Generation is now parsed
+  from the brand string.
+- The readiness wizard reported `python3` as the Python version and
+  `app-local venv` as the Whisper version — a command name and a location, not
+  versions. Both now report the real installed version.
+- Release artifact verification matched every file in the bundle directory, so
+  Tauri's own `bundle_dmg.sh` helper was treated as a release artifact and failed
+  the check. Only `.dmg`, `.deb` and `.AppImage` files are considered, and the
+  temporary `rw.*.dmg` scratch image is skipped.
+- AppStream metadata used tags that only exist in AppStream 1.0, so validation
+  failed on Ubuntu 22.04 while passing locally. The metadata now parses on both.
+
+### 🧹 Changed
+- **Intel macOS builds are no longer produced.** macOS is deprecating x86_64
+  application support, so releases now ship a single Apple Silicon `.dmg`.
+  Existing Intel installs keep working; they will not receive further updates.
+
 ## [v1.0.2] - 2026-08-22
 
 ### 🐛 Fixed Bugs & Issues

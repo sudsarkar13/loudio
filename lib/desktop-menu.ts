@@ -210,8 +210,8 @@ async function buildMenu(
 				item: {
 					About: {
 						name: "Loudio",
-						version: "1.0.2",
-						shortVersion: "1.0.2",
+						version: "1.0.3",
+						shortVersion: "1.0.3",
 						copyright: "© Sudeepta Sarkar",
 						credits: "Developed by Sudeepta Sarkar",
 						icon: aboutIcon,

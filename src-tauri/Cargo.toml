@@ -1,6 +1,6 @@
 [package]
 name = "loudio"
-version = "1.0.2"
+version = "1.0.3"
 description = "Loudio desktop transcription studio"
 authors = ["Sudeepta Sarkar"]
 license = "MIT"
