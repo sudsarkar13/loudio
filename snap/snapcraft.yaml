@@ -90,12 +90,37 @@ parts:
       - libxdo-dev
       - pkg-config
       - wget
-    build-snaps:
-      - node/22/stable
-      - rustup
+      - xz-utils
     override-build: |
       set -eu
-      rustup default stable
+
+      # Node and Rust are fetched rather than taken from build-snaps. The gnome
+      # extension puts its SDK ahead of the system on LD_LIBRARY_PATH, and a
+      # snap-provided binary built against a different glibc then dies with
+      #   undefined symbol: __nptl_change_stack_perm, version GLIBC_PRIVATE
+      # Downloading toolchains that link against this base avoids the clash.
+      #
+      # rustup, not the archive's rustc: core24 ships 1.75 and Cargo.toml
+      # requires 1.77.
+      case "$(dpkg --print-architecture)" in
+        amd64) NODE_ARCH=x64 ;;
+        arm64) NODE_ARCH=arm64 ;;
+        *) echo "unsupported architecture" >&2; exit 1 ;;
+      esac
+
+      NODE_VERSION=24.19.0
+      curl -fsSL --retry 3 \
+        "https://nodejs.org/dist/v${NODE_VERSION}/node-v${NODE_VERSION}-linux-${NODE_ARCH}.tar.xz" \
+        -o "${CRAFT_PART_BUILD}/node.tar.xz"
+      mkdir -p "${CRAFT_PART_BUILD}/.node"
+      tar -xJf "${CRAFT_PART_BUILD}/node.tar.xz" -C "${CRAFT_PART_BUILD}/.node" --strip-components=1
+      export PATH="${CRAFT_PART_BUILD}/.node/bin:${PATH}"
+
+      export RUSTUP_HOME="${CRAFT_PART_BUILD}/.rustup"
+      export CARGO_HOME="${CRAFT_PART_BUILD}/.cargo"
+      curl -fsSL --retry 3 https://sh.rustup.rs \
+        | sh -s -- -y --profile minimal --default-toolchain stable --no-modify-path
+      export PATH="${CARGO_HOME}/bin:${PATH}"
 
       # Yarn comes from the version pinned in package.json's packageManager.
       corepack enable
