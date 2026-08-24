@@ -1,0 +1,139 @@
+# Snap package for Loudio.
+#
+# Unlike the .deb, this bundles the transcription engines: FFmpeg comes from the
+# Ubuntu archive and whisper.cpp is built from a pinned source release. A strict
+# snap has no apt, brew or snap of its own to call, so the readiness wizard
+# cannot install anything here — see src-tauri/src/install_flavor.rs, which
+# detects the sandbox and turns those actions off.
+#
+# Confinement is strict deliberately. Everything Loudio needs maps onto standard
+# interfaces, and Flathub requires a sandbox-compatible design regardless, so
+# classic would mean maintaining two architectures for no gain. See
+# docs/STORE_DISTRIBUTION_PLAN.md.
+
+name: loudio
+base: core24
+adopt-info: loudio
+grade: stable
+confinement: strict
+license: MIT
+icon: src-tauri/icons/icon.png
+
+platforms:
+  amd64:
+  arm64:
+
+apps:
+  loudio:
+    command: usr/bin/loudio
+    extensions: [gnome]        # GTK3 + WebKitGTK 4.1 from gnome-46-2404
+    desktop: usr/share/applications/loudio.desktop
+    plugs:
+      - audio-record           # microphone capture
+      - audio-playback         # previewing recordings
+      - network                # model downloads only
+      - home                   # transcribing audio files the user picks
+      - removable-media
+    environment:
+      # Resolved by install_flavor::bundled_paths_for before any host binary.
+      LOUDIO_FFMPEG_PATH: $SNAP/usr/bin/ffmpeg
+
+parts:
+  # ---------------------------------------------------------------- engines --
+  whisper-cpp:
+    plugin: cmake
+    source: https://github.com/ggml-org/whisper.cpp/archive/refs/tags/v1.9.3.tar.gz
+    source-checksum: sha256/1650f884effba487025143bd8facd2f9fb40a83b3737a732803c67a8d659d9c0
+    cmake-parameters:
+      - -DCMAKE_BUILD_TYPE=Release
+      - -DCMAKE_INSTALL_PREFIX=/usr
+      - -DBUILD_SHARED_LIBS=OFF
+      - -DWHISPER_BUILD_TESTS=OFF
+      - -DWHISPER_BUILD_EXAMPLES=ON
+      - -DWHISPER_BUILD_SERVER=OFF
+    build-packages:
+      - build-essential
+      - cmake
+    stage-packages:
+      - libgomp1
+    override-build: |
+      craftctl default
+      # The example binary is what Loudio invokes; upstream does not always
+      # install it under a stable name, so place it deliberately.
+      if [ ! -x "${CRAFT_PART_INSTALL}/usr/bin/whisper-cli" ]; then
+        found=$(find "${CRAFT_PART_BUILD}" -name 'whisper-cli' -type f -perm -u+x | head -1)
+        [ -n "$found" ] && install -Dm755 "$found" "${CRAFT_PART_INSTALL}/usr/bin/whisper-cli"
+      fi
+
+  ffmpeg:
+    plugin: nil
+    stage-packages:
+      - ffmpeg
+
+  # ------------------------------------------------------------------- app --
+  loudio:
+    after: [whisper-cpp, ffmpeg]
+    plugin: nil
+    source: .
+    # Title, version, summary, description and icon come from the AppStream
+    # file, so they cannot drift from what the stores show. Screenshots are not
+    # adopted — those are uploaded to the store listing separately.
+    parse-info: [usr/share/metainfo/io.github.sudsarkar13.loudio.metainfo.xml]
+    build-packages:
+      - build-essential
+      - curl
+      - file
+      - libayatana-appindicator3-dev
+      - librsvg2-dev
+      - libssl-dev
+      - libwebkit2gtk-4.1-dev
+      - libxdo-dev
+      - pkg-config
+      - wget
+    build-snaps:
+      - node/22/stable
+      - rustup
+    override-build: |
+      set -eu
+      rustup default stable
+
+      # Yarn comes from the version pinned in package.json's packageManager.
+      corepack enable
+      corepack prepare "yarn@$(node -p "require('./package.json').packageManager.split('@')[1]")" --activate
+
+      yarn install --immutable
+      yarn build                      # next build -> ./out, the frontendDist
+      cargo build --release --manifest-path src-tauri/Cargo.toml
+
+      install -Dm755 src-tauri/target/release/loudio \
+        "${CRAFT_PART_INSTALL}/usr/bin/loudio"
+      install -Dm644 src-tauri/appstream/io.github.sudsarkar13.loudio.metainfo.xml \
+        "${CRAFT_PART_INSTALL}/usr/share/metainfo/io.github.sudsarkar13.loudio.metainfo.xml"
+
+      # cargo build alone produces no desktop entry — only the Tauri bundler
+      # does, and it is not run here. Icon and Exec are left bare for the gnome
+      # extension and snapcraft to rewrite.
+      install -d "${CRAFT_PART_INSTALL}/usr/share/applications"
+      cat > "${CRAFT_PART_INSTALL}/usr/share/applications/loudio.desktop" <<'DESKTOP'
+      [Desktop Entry]
+      Type=Application
+      Name=Loudio
+      Comment=Offline transcription studio for audio files and microphone recordings
+      Exec=loudio
+      Icon=loudio
+      Terminal=false
+      StartupNotify=true
+      StartupWMClass=loudio
+      Categories=AudioVideo;Audio;
+      Keywords=transcription;transcribe;speech;text;dictation;subtitles;whisper;offline;audio;
+      DESKTOP
+
+      # Only these sizes exist in the repo; icon.png is the 512px master.
+      for size in 32 64 128; do
+        install -Dm644 "src-tauri/icons/${size}x${size}.png" \
+          "${CRAFT_PART_INSTALL}/usr/share/icons/hicolor/${size}x${size}/apps/loudio.png"
+      done
+      install -Dm644 src-tauri/icons/icon.png \
+        "${CRAFT_PART_INSTALL}/usr/share/icons/hicolor/512x512/apps/loudio.png"
+
+      craftctl set version="$(node -p "require('./package.json').version")"

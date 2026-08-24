@@ -92,3 +92,32 @@ jobs:
       # legitimately not have them yet. The release workflow enforces this.
       - name: Check screenshot URLs (advisory)
         run: bash .github/scripts/check-screenshots.sh --warn-only
+
+  # The snap cannot be built without LXD or multipass, which a dev machine
+  # generally does not have, so CI is where the manifest is actually exercised.
+  # Without this the first real build would happen at release time, which is the
+  # worst moment to discover it does not compile.
+  snap:
+    name: Build the snap
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Build
+        id: build
+        uses: snapcore/action-build@v1
+
+      - name: Report what was produced
+        run: |
+          set -euo pipefail
+          ls -la "${{ steps.build.outputs.snap }}"
+          echo "--- contents that matter ---"
+          unsquashfs -l "${{ steps.build.outputs.snap }}" \
+            | grep -E 'squashfs-root/(usr/bin/(loudio|whisper-cli|ffmpeg)|meta/snap.yaml)$' || true
+
+      - name: Keep the snap for inspection
+        uses: actions/upload-artifact@v4
+        with:
+          name: loudio-snap
+          path: ${{ steps.build.outputs.snap }}
+          retention-days: 7

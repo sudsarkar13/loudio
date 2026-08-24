@@ -60,6 +60,41 @@ pub fn detect() -> InstallFlavor {
     classify(snap.as_deref(), flatpak.as_deref())
 }
 
+/// Where a bundled engine binary lives, for the given flavour and package root.
+///
+/// Split from [`bundled_binary_candidates`] so the path shapes can be tested
+/// without a snap or Flatpak to run inside.
+pub fn bundled_paths_for(flavor: InstallFlavor, root: Option<&str>, name: &str) -> Vec<String> {
+    match flavor {
+        // $SNAP is the mounted revision. Parts stage into usr/bin or bin
+        // depending on whether they came from the archive or were built.
+        InstallFlavor::Snap => match root {
+            Some(root) if !root.is_empty() => vec![
+                format!("{root}/usr/bin/{name}"),
+                format!("{root}/bin/{name}"),
+            ],
+            _ => Vec::new(),
+        },
+        // /app is the Flatpak prefix; /usr is the runtime, which is where the
+        // GNOME platform's own ffmpeg lives.
+        InstallFlavor::Flatpak => vec![
+            format!("/app/bin/{name}"),
+            format!("/usr/bin/{name}"),
+        ],
+        InstallFlavor::Native => Vec::new(),
+    }
+}
+
+/// Bundled locations to try before anything on the host.
+///
+/// Inside a sandbox a host binary is usually unreachable anyway, so preferring
+/// the bundled copy avoids detecting something that cannot then be executed.
+pub fn bundled_binary_candidates(name: &str) -> Vec<String> {
+    let flavor = detect();
+    let root = std::env::var("SNAP").ok();
+    bundled_paths_for(flavor, root.as_deref(), name)
+}
+
 /// What the UI shows about this install.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
@@ -114,6 +149,39 @@ mod tests {
     #[test]
     fn empty_values_do_not_count_as_set() {
         assert_eq!(classify(Some(""), Some("")), InstallFlavor::Native);
+    }
+
+    #[test]
+    fn a_native_install_has_no_bundled_paths_to_try() {
+        assert!(bundled_paths_for(InstallFlavor::Native, None, "ffmpeg").is_empty());
+        // Even if SNAP leaked into the environment of a native build.
+        assert!(bundled_paths_for(InstallFlavor::Native, Some("/snap/x/1"), "ffmpeg").is_empty());
+    }
+
+    #[test]
+    fn snap_paths_are_rooted_at_the_mounted_revision() {
+        assert_eq!(
+            bundled_paths_for(InstallFlavor::Snap, Some("/snap/loudio/42"), "whisper-cli"),
+            vec![
+                "/snap/loudio/42/usr/bin/whisper-cli".to_string(),
+                "/snap/loudio/42/bin/whisper-cli".to_string(),
+            ]
+        );
+    }
+
+    #[test]
+    fn a_snap_without_a_root_offers_nothing_rather_than_a_bare_path() {
+        // Guards against building "/usr/bin/ffmpeg" and reaching outside the snap.
+        assert!(bundled_paths_for(InstallFlavor::Snap, None, "ffmpeg").is_empty());
+        assert!(bundled_paths_for(InstallFlavor::Snap, Some(""), "ffmpeg").is_empty());
+    }
+
+    #[test]
+    fn flatpak_prefers_the_app_prefix_then_the_runtime() {
+        assert_eq!(
+            bundled_paths_for(InstallFlavor::Flatpak, None, "ffmpeg"),
+            vec!["/app/bin/ffmpeg".to_string(), "/usr/bin/ffmpeg".to_string()]
+        );
     }
 
     #[test]

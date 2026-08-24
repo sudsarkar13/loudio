@@ -53,6 +53,14 @@ pub async fn ensure_homebrew_available() -> Result<String> {
 }
 
 pub async fn detect_ffmpeg_bin() -> Option<String> {
+    // Bundled copies first: inside a snap or Flatpak the host's ffmpeg is not
+    // reachable, so detecting it would only produce a failure at run time.
+    for candidate in crate::install_flavor::bundled_binary_candidates("ffmpeg") {
+        if command_available(&candidate, &["-version"]).await {
+            return Some(candidate);
+        }
+    }
+
     if command_available("ffmpeg", &["-version"]).await {
         return Some("ffmpeg".to_string());
     }
@@ -310,6 +318,18 @@ pub async fn detect_whisper_cli(manual_engine_path: Option<&str>) -> Option<Stri
             if ok {
                 return Some(trimmed.to_string());
             }
+        }
+    }
+
+    // Bundled first, for the same reason as ffmpeg above.
+    for candidate in crate::install_flavor::bundled_binary_candidates("whisper-cli") {
+        let ok = tokio::process::Command::new(&candidate)
+            .arg("-h")
+            .output()
+            .await
+            .is_ok_and(|o| o.status.success() || !o.stderr.is_empty());
+        if ok {
+            return Some(candidate);
         }
     }
 

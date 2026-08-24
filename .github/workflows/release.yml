@@ -436,3 +436,41 @@ jobs:
           prerelease: ${{ needs.validate.outputs.prerelease }}
           make_latest: ${{ needs.validate.outputs.prerelease == 'false' }}
           draft: false
+
+  # ---------------------------------------------------------------------------
+  # Snap
+  #
+  # Runs *after* publish, and deliberately not as a dependency of it: a Snap
+  # Store failure must never stop the .deb and .dmg from reaching users.
+  #
+  # Publishes to beta, never straight to stable. Snaps auto-update, so a broken
+  # stable revision reaches every user within a day, where a bad .deb only sits
+  # on a releases page. Promotion is a manual step once the revision has been
+  # checked:
+  #
+  #   snapcraft promote loudio --from-channel beta --to-channel stable
+  # ---------------------------------------------------------------------------
+  publish-snap:
+    name: Build & publish the snap (beta)
+    needs: [validate, publish]
+    # Only stable tags reach the store at all; a prerelease tag builds nothing.
+    if: needs.validate.outputs.prerelease == 'false'
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout tagged commit
+        uses: actions/checkout@v5
+        with:
+          ref: ${{ needs.validate.outputs.tag }}
+
+      - name: Build the snap
+        id: build
+        uses: snapcore/action-build@v1
+
+      - name: Publish to the beta channel
+        uses: snapcore/action-publish@v1
+        env:
+          SNAPCRAFT_STORE_CREDENTIALS: ${{ secrets.SNAPCRAFT_STORE_CREDENTIALS }}
+        with:
+          snap: ${{ steps.build.outputs.snap }}
+          release: beta
