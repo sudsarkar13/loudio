@@ -179,10 +179,22 @@ only adds the vendoring.
 5. Snap: **builds in CI** — an 87 MB snap carrying `loudio`, `whisper-cli` and
    `ffmpeg`. Still to do: run it under strict confinement and transcribe once
 6. Snap: upload screenshots to the store listing
-7. Flathub: manifest written and building locally; **still needs offline
-   vendoring** — 538 crates and the Yarn Berry cache — before it can be submitted
+7. Flathub: **builds, installs and runs locally** — launches straight to Ready
+   with `whisper-cli` bundled and ffmpeg from the runtime. Still needs **offline
+   vendoring** (538 crates and the Yarn Berry cache) and the `--share=network`
+   build-arg removed before it can be submitted
 8. ~~CI: build both on tag~~ — snap builds on every push and publishes to `beta`
    after the GitHub release; Flathub builds on its own infrastructure
+
+### Notes on the two builds
+
+**Flatpak.** Four separate traps, all now handled in the manifest: `corepack
+enable` writing into a read-only SDK prefix; `package.json` declaring
+`"type": "module"`, which made corepack's cached CommonJS `yarn.js` load as ESM;
+each build command running in a fresh sandbox where only the module's source
+directory persists; and `appstreamcli compose` rejecting the component because
+the shared metainfo's first `<launchable>` names the `.deb`'s desktop file,
+which does not exist in the Flatpak.
 
 ### Note on the snap toolchain
 
