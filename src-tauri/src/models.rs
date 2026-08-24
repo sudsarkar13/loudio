@@ -106,7 +106,41 @@ pub struct LegacyMigrationResult {
     pub errors: Vec<String>,
 }
 
-fn apple_silicon_generation() -> Option<&'static str> {
+/// Extracts the `M<n>` family from a CPU brand string such as `Apple M4 Pro`.
+///
+/// Parses the number rather than matching a fixed list, so a chip released
+/// after this code was written is still recognised. The previous
+/// `["M4", "M3", "M2", "M1"]` list downgraded anything newer to the generic
+/// ARM64 profile and told the user there was no Metal acceleration — which
+/// matters more now that Apple Silicon is the only macOS target.
+fn parse_apple_silicon_generation(brand: &str) -> Option<String> {
+    let upper = brand.to_uppercase();
+    let bytes = upper.as_bytes();
+
+    for (index, byte) in bytes.iter().enumerate() {
+        if *byte != b'M' {
+            continue;
+        }
+
+        // The M must start a word, otherwise "ARM64" and "AMD" look like families.
+        if index > 0 && bytes[index - 1].is_ascii_alphanumeric() {
+            continue;
+        }
+
+        let digits: String = upper[index + 1..]
+            .chars()
+            .take_while(char::is_ascii_digit)
+            .collect();
+
+        if !digits.is_empty() {
+            return Some(format!("M{digits}"));
+        }
+    }
+
+    None
+}
+
+fn apple_silicon_generation() -> Option<String> {
     if !cfg!(target_os = "macos") || !cfg!(target_arch = "aarch64") {
         return None;
     }
@@ -115,11 +149,8 @@ fn apple_silicon_generation() -> Option<&'static str> {
         .args(["-n", "machdep.cpu.brand_string"])
         .output()
         .ok()?;
-    let brand = String::from_utf8_lossy(&output.stdout).to_uppercase();
 
-    ["M4", "M3", "M2", "M1"]
-        .into_iter()
-        .find(|generation| brand.contains(generation))
+    parse_apple_silicon_generation(&String::from_utf8_lossy(&output.stdout))
 }
 
 fn recommended_runtime_title() -> String {
@@ -190,4 +221,47 @@ pub fn runtime_profiles() -> Vec<RuntimeProfile> {
             recommended: false,
         },
     ]
+}
+
+#[cfg(test)]
+mod tests {
+    use super::parse_apple_silicon_generation;
+
+    #[test]
+    fn detects_every_apple_silicon_family() {
+        for (brand, expected) in [
+            ("Apple M1", "M1"),
+            ("Apple M1 Pro", "M1"),
+            ("Apple M2 Max", "M2"),
+            ("Apple M3 Ultra", "M3"),
+            ("Apple M4 Pro", "M4"),
+            // The reason this parses rather than matching a list: chips that
+            // did not exist when this was written must still be recognised.
+            ("Apple M5", "M5"),
+            ("Apple M10 Max", "M10"),
+        ] {
+            assert_eq!(
+                parse_apple_silicon_generation(brand).as_deref(),
+                Some(expected),
+                "failed on {brand}"
+            );
+        }
+    }
+
+    #[test]
+    fn ignores_brands_that_merely_contain_an_m() {
+        for brand in [
+            "Intel(R) Core(TM) i7-9750H",
+            "AMD Ryzen 9 5900X",
+            "ARM64 Neoverse-N1",
+            "12th Gen Intel(R) Core(TM) i9-12900K",
+            "",
+        ] {
+            assert_eq!(
+                parse_apple_silicon_generation(brand),
+                None,
+                "false positive on {brand}"
+            );
+        }
+    }
 }

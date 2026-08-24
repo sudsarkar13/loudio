@@ -4,7 +4,7 @@ import "@/app/globals.css";
 
 export const metadata: Metadata = {
   title: "Loudio | Offline Whisper Transcription",
-  description: "Modern offline speech-to-text for macOS, powered by Whisper on Apple Silicon."
+  description: "Modern offline speech-to-text for Linux and Apple Silicon Macs, powered by Whisper."
 };
 
 interface RootLayoutProps {

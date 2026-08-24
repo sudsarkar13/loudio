@@ -32,7 +32,7 @@ echo "## Downloads"
 echo
 echo "| Platform | File |"
 echo "| :-- | :-- |"
-[ -n "$DMG_ARM" ]  && echo "| macOS — Apple Silicon (M1/M2/M3/M4) | [\`$DMG_ARM\`]($BASE/$DMG_ARM) |"
+[ -n "$DMG_ARM" ]  && echo "| macOS — Apple Silicon (M1 and later) | [\`$DMG_ARM\`]($BASE/$DMG_ARM) |"
 [ -n "$DEB" ]      && echo "| Ubuntu / Debian | [\`$DEB\`]($BASE/$DEB) |"
 echo "| Checksums | [\`SHA256SUMS\`]($BASE/SHA256SUMS) |"
 echo
