@@ -5,8 +5,9 @@
 > **Prerequisite for both:** rename the application ID (see below).
 > **Confinement:** strict — decided, see Decisions.
 > **Build divergence:** accepted, with an install-flavour indicator — decided.
-> **Deferred:** the stage 4 model and the release-pipeline shape are recorded
-> below but explicitly **not** being acted on yet.
+> **Stage 4:** deferred to **v1.0.5**, after both store launches.
+> **Now in progress:** the store launches themselves, working down the
+> sequencing list below.
 
 ## Why this work exists
 
@@ -167,8 +168,10 @@ no dependency vendoring. It gets a real store listing up while proving out the
 bundled-engine work, which both routes share. Flathub then reuses that work and
 only adds the vendoring.
 
-1. Extend `settings.json` migration to cover renamed bundle IDs
-2. Rename the application ID to `io.github.sudsarkar13.loudio`
+1. ~~Extend `settings.json` migration to cover renamed bundle IDs~~ — **done**,
+   along with a persist-on-mount bug that was overwriting stored settings with
+   defaults before anything read them
+2. Rename the application ID to `io.github.sudsarkar13.loudio` ← **next**
 3. Make the readiness wizard conditional on install method
 4. Bundle `whisper.cpp`; take `ffmpeg` from the platform in each case
 5. Snap: `snapcraft.yaml`, build, test under strict confinement (name already registered)
@@ -214,8 +217,6 @@ that is a real argument for bundling everywhere.
 
 ## Deferred — recorded, not being acted on
 
-These two are settled enough to write down and deliberately left unexecuted.
-
 ### 3. The stage 4 model: download rather than bundle
 
 [Stage 4](STAGE_4_PLAN.md) currently assumes a bundled 253 MB Gemma model. The
@@ -231,9 +232,10 @@ size-verified, and Flathub permits runtime *model* downloads — Buzz and Speech
 Note both do exactly this. Structuring is also off by default, so bundling would
 make every user download 253 MB for an optional feature.
 
-**Not decided. Revisit with stage 4.**
+**Deferred to v1.0.5.** Both store launches come first, so that version
+control and changelogs are established before a model lands in the packages.
 
-### 4. Release pipeline shape
+## Release pipeline shape — the target we are building toward
 
 Flathub decouples itself: their buildbot builds and publishes from the
 `flathub/<id>` repository after a push, with nothing built or uploaded from our
@@ -252,4 +254,5 @@ The risk is flake surface, not job count — as the `hdiutil` failure during the
 v1.0.3 release showed. That is already covered: the workflow is idempotent and
 re-runnable with `gh workflow run release.yml -f tag=…`.
 
-**Not decided. Revisit before any store publishing work starts.**
+This is step 8, the *end* of the sequencing list rather than the start: there is
+no snap job to write until `snapcraft.yaml` exists and builds.
