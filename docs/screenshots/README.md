@@ -9,7 +9,7 @@ committed to `main` and pushed.
 
 Drop five PNGs here with these exact filenames. The names and captions are
 already wired up in
-[`src-tauri/appstream/com.loudio.desktop.metainfo.xml`](../../src-tauri/appstream/com.loudio.desktop.metainfo.xml)
+[`src-tauri/appstream/io.github.sudsarkar13.loudio.metainfo.xml`](../../src-tauri/appstream/io.github.sudsarkar13.loudio.metainfo.xml)
 — add the files and they appear, no config change needed.
 
 | Filename | Caption already set | What to capture |
@@ -60,5 +60,5 @@ release is published, because stores fetch them from the `main` branch URL.
 ## Validating the metadata
 
 ```bash
-appstreamcli validate --pedantic src-tauri/appstream/com.loudio.desktop.metainfo.xml
+appstreamcli validate --pedantic src-tauri/appstream/io.github.sudsarkar13.loudio.metainfo.xml
 ```

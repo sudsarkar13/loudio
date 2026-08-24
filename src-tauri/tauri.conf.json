@@ -2,7 +2,7 @@
 	"$schema": "https://schema.tauri.app/config/2",
 	"productName": "Loudio",
 	"version": "1.0.3",
-	"identifier": "com.loudio.desktop",
+	"identifier": "io.github.sudsarkar13.loudio",
 	"build": {
 		"beforeDevCommand": "npm run dev",
 		"beforeBuildCommand": "npm run build",
@@ -18,6 +18,8 @@
 					"$APPDATA/runtime/output/**",
 					"$APPLOCALDATA/runtime/output/**",
 					"$RUNTIME/output/**",
+					"$HOME/Library/Application Support/io.github.sudsarkar13.loudio/runtime/output/**",
+					"$HOME/.local/share/io.github.sudsarkar13.loudio/runtime/output/**",
 					"$HOME/Library/Application Support/com.loudio.desktop/runtime/output/**",
 					"$HOME/.local/share/com.loudio.desktop/runtime/output/**"
 				]
@@ -70,7 +72,7 @@
 				],
 				"desktopTemplate": "appstream/loudio.desktop.hbs",
 				"files": {
-					"/usr/share/metainfo/com.loudio.desktop.metainfo.xml": "appstream/com.loudio.desktop.metainfo.xml",
+					"/usr/share/metainfo/io.github.sudsarkar13.loudio.metainfo.xml": "appstream/io.github.sudsarkar13.loudio.metainfo.xml",
 					"/usr/share/doc/loudio/copyright": "appstream/copyright"
 				}
 			}

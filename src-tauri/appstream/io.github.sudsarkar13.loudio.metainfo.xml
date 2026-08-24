@@ -12,7 +12,7 @@
   src-tauri/tauri.conf.json.
 -->
 <component type="desktop-application">
-  <id>com.loudio.desktop</id>
+  <id>io.github.sudsarkar13.loudio</id>
 
   <metadata_license>CC0-1.0</metadata_license>
   <project_license>MIT</project_license>
@@ -167,5 +167,17 @@
 
   <provides>
     <binary>loudio</binary>
+    <!--
+      Loudio shipped as com.loudio.desktop through v1.0.3. That id claimed the
+      domain loudio.com, which this project does not control; Flathub requires
+      an id whose domain you own, or the io.github.<user> form for code hosting.
+      Declaring the old id here tells software centres this is the same
+      application renamed, not a new one.
+
+      <provides><id> rather than <replaces>: 22.04 ships AppStream 0.15 and the
+      validate job is pinned to it, and it is not established that 0.15 knows
+      <replaces>. This tag has been understood far longer and does the job.
+    -->
+    <id>com.loudio.desktop</id>
   </provides>
 </component>

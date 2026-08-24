@@ -54,7 +54,7 @@ const TARGETS = [
 		// AppStream metadata read by GNOME Software / KDE Discover. Checked but
 		// never rewritten: each version needs its own <release> block with real
 		// notes, and blindly relabelling the previous block would erase it.
-		file: "src-tauri/appstream/com.loudio.desktop.metainfo.xml",
+		file: "src-tauri/appstream/io.github.sudsarkar13.loudio.metainfo.xml",
 		read: (raw) => raw.match(/<release\s+version="([^"]+)"/)?.[1],
 		write: null,
 		manualHint:

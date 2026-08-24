@@ -13,7 +13,7 @@ ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 cd "$ROOT"
 
 CONF="src-tauri/tauri.conf.json"
-METAINFO="src-tauri/appstream/com.loudio.desktop.metainfo.xml"
+METAINFO="src-tauri/appstream/io.github.sudsarkar13.loudio.metainfo.xml"
 fail=0
 
 say() { printf '%s\n' "$*"; }

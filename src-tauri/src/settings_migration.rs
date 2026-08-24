@@ -183,7 +183,7 @@ mod tests {
     fn finds_a_previous_bundle_ids_settings_under_the_data_root() {
         let root = std::env::temp_dir().join(format!("loudio-root-{}", std::process::id()));
         let legacy = root.join("com.loudio.app");
-        let current = root.join("com.loudio.desktop");
+        let current = root.join("io.github.sudsarkar13.loudio");
         fs::create_dir_all(&legacy).unwrap();
         fs::create_dir_all(&current).unwrap();
         write(&legacy, "settings.json", &valid_settings("en"));

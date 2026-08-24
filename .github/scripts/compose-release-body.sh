@@ -59,7 +59,7 @@ sudo snap alias whisper-cpp.cli whisper-cli
 \`\`\`
 
 The first transcription downloads the Whisper model (~490 MB for \`small\`) into
-\`~/.local/share/com.loudio.desktop/runtime/models\`. That is a one-time cost and
+\`~/.local/share/io.github.sudsarkar13.loudio/runtime/models\`. That is a one-time cost and
 everything after it runs offline.
 
 INSTALL

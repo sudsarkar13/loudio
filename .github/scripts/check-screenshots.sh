@@ -9,7 +9,7 @@
 set -uo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
-METAINFO="$ROOT/src-tauri/appstream/com.loudio.desktop.metainfo.xml"
+METAINFO="$ROOT/src-tauri/appstream/io.github.sudsarkar13.loudio.metainfo.xml"
 WARN_ONLY=0
 [ "${1:-}" = "--warn-only" ] && WARN_ONLY=1
 

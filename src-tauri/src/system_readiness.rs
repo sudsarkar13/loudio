@@ -627,12 +627,12 @@ pub fn manual_command_for(id: &str, action: &str) -> String {
             _ => "Install openai-whisper from https://github.com/openai/whisper".to_string(),
         },
         ("models-dir", "install") => match os {
-            "macos" => "mkdir -p \"$HOME/Library/Application Support/com.loudio.desktop/runtime/models\""
+            "macos" => "mkdir -p \"$HOME/Library/Application Support/io.github.sudsarkar13.loudio/runtime/models\""
                 .to_string(),
-            "linux" => "mkdir -p \"$HOME/.local/share/com.loudio.desktop/runtime/models\""
+            "linux" => "mkdir -p \"$HOME/.local/share/io.github.sudsarkar13.loudio/runtime/models\""
                 .to_string(),
             "windows" => {
-                "mkdir \"%APPDATA%\\com.loudio.desktop\\runtime\\models\"".to_string()
+                "mkdir \"%APPDATA%\\io.github.sudsarkar13.loudio\\runtime\\models\"".to_string()
             }
             _ => "Create a writable runtime/models directory in the app data folder.".to_string(),
         },

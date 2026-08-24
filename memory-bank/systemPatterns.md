@@ -48,7 +48,7 @@
    - Each prerequisite is its own card with `Install / Reinstall / Update / Skip` and a copyable manual command; nothing is auto-installed without an explicit click.
    - Per-step install progress is streamed via the `readiness-progress` event; failures surface in the same UI and the user can fall back to the manual command shown in the card.
    - On every subsequent launch a fast health check re-uses the cached snapshot and surfaces a `ReadinessDriftBanner` whenever any prerequisite state has changed (e.g. an update appeared, or the user installed something externally).
-   - Snapshot and per-item skip decisions are persisted at `$APPDATA/com.loudio.desktop/readiness/{snapshot,skipped}.json` (with the source of truth on the Rust side; mirrored to localStorage only for first-paint).
+   - Snapshot and per-item skip decisions are persisted at `$APPDATA/io.github.sudsarkar13.loudio/readiness/{snapshot,skipped}.json` (with the source of truth on the Rust side; mirrored to localStorage only for first-paint).
 
 9. **About panel as in-app license surface**
    - `AboutPanel` is opened from the top strip and renders the bundled `LICENSE` via the `read_full_license` Rust command (`include_str!("../../LICENSE")`). This satisfies the "license must be visible from inside the app" expectation without re-prompting the user.

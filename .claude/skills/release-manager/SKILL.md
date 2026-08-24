@@ -62,7 +62,7 @@ the source of truth, see its `TARGETS`:
 - `lib/desktop-menu.ts` — the **Help → About Loudio** dialog, the only version
   string a user reads inside the app. It was hardcoded and drifting until v1.0.2.
 
-**Checked but never rewritten**: `src-tauri/appstream/com.loudio.desktop.metainfo.xml`.
+**Checked but never rewritten**: `src-tauri/appstream/io.github.sudsarkar13.loudio.metainfo.xml`.
 `version:set` prints a reminder instead, because every version needs its own
 `<release>` block with real notes — relabelling the previous one would erase it.
 Add the block by hand, then re-run `yarn version:check`.
@@ -123,11 +123,11 @@ and per-release notes. Without it stores show the bare dpkg fields — which is 
 Loudio appeared as "loudio" with a "(none)" description before v1.0.2.
 
 Add a `<release>` block for this version in
-[`src-tauri/appstream/com.loudio.desktop.metainfo.xml`](../../../src-tauri/appstream/com.loudio.desktop.metainfo.xml),
+[`src-tauri/appstream/io.github.sudsarkar13.loudio.metainfo.xml`](../../../src-tauri/appstream/io.github.sudsarkar13.loudio.metainfo.xml),
 then validate:
 
 ```bash
-appstreamcli validate --pedantic src-tauri/appstream/com.loudio.desktop.metainfo.xml
+appstreamcli validate --pedantic src-tauri/appstream/io.github.sudsarkar13.loudio.metainfo.xml
 ```
 
 Screenshots are **not** packaged — stores fetch them from
