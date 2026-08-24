@@ -17,6 +17,36 @@ const TRAY_ICON_ID = "loudio-main-tray";
 let trayIconPromise: Promise<TrayIcon | null> | null = null;
 let menuSetupQueue: Promise<void> = Promise.resolve();
 
+/**
+ * The actions the currently installed menu dispatches through.
+ *
+ * Menu item handlers are attached to native items once and never rebuilt, so
+ * they must not capture an `actions` object directly — React hands us a new one
+ * whenever a callback identity changes. Reading through this binding keeps the
+ * installed menu wired to the latest callbacks without touching native state.
+ */
+let currentActions: DesktopMenuActions | null = null;
+
+/** A menu plus the two items whose checked state tracks app state. */
+interface BuiltMenu {
+	menu: Menu;
+	autoCopyItem: CheckMenuItem;
+	compactModeItem: CheckMenuItem;
+}
+
+let installedMenus: { app: BuiltMenu; tray: BuiltMenu } | null = null;
+
+/**
+ * Last menu bar visibility we asked the window for, so we only pay for the IPC
+ * when it actually changes. `null` means we have not applied one yet — the case
+ * after a webview reload, where module state resets but the native bar does not.
+ */
+let appliedMenuBarVisible: boolean | null = null;
+
+/** Checked states currently shown by the installed items, to skip no-op IPC. */
+let appliedAutoCopy: boolean | null = null;
+let appliedCompactMode: boolean | null = null;
+
 export interface DesktopMenuActions {
 	openAudioFile: () => Promise<void>;
 	transcribeFile: () => Promise<void>;
@@ -73,25 +103,22 @@ function loadTrayIcon(): Promise<MenuIcon> {
  * so the window menu bar and the tray each need their own instances rather than
  * a shared one.
  */
-async function buildMenu(
-	actions: DesktopMenuActions,
-	aboutIcon: MenuIcon,
-): Promise<Menu> {
+async function buildMenu(aboutIcon: MenuIcon): Promise<BuiltMenu> {
 	const autoCopyMenuItem = await CheckMenuItem.new({
 		id: "view_toggle_auto_copy",
 		text: "Auto Copy to Clipboard",
-		checked: actions.isAutoCopyEnabled,
+		checked: currentActions?.isAutoCopyEnabled ?? false,
 		action: () => {
-			actions.toggleAutoCopy();
+			currentActions?.toggleAutoCopy();
 		},
 	});
 
 	const compactModeMenuItem = await CheckMenuItem.new({
 		id: "window_toggle_compact_mode",
 		text: "Compact Mode",
-		checked: actions.isCompactModeEnabled,
+		checked: currentActions?.isCompactModeEnabled ?? false,
 		action: () => {
-			void actions.toggleCompactMode();
+			void currentActions?.toggleCompactMode();
 		},
 	});
 
@@ -104,7 +131,7 @@ async function buildMenu(
 				text: "Choose Audio…",
 				accelerator: "CmdOrCtrl+O",
 				action: () => {
-					void actions.openAudioFile();
+					void currentActions?.openAudioFile();
 				},
 			},
 			{
@@ -112,7 +139,7 @@ async function buildMenu(
 				text: "Transcribe File",
 				accelerator: "CmdOrCtrl+Enter",
 				action: () => {
-					void actions.transcribeFile();
+					void currentActions?.transcribeFile();
 				},
 			},
 			{
@@ -120,7 +147,7 @@ async function buildMenu(
 				text: "Record / Stop Microphone",
 				accelerator: "CmdOrCtrl+Shift+M",
 				action: () => {
-					void actions.toggleMicRecording();
+					void currentActions?.toggleMicRecording();
 				},
 			},
 			{
@@ -149,7 +176,7 @@ async function buildMenu(
 				text: "Copy Transcript",
 				accelerator: "CmdOrCtrl+Shift+C",
 				action: () => {
-					void actions.copyTranscript();
+					void currentActions?.copyTranscript();
 				},
 			},
 			{
@@ -157,7 +184,7 @@ async function buildMenu(
 				text: "Clear Transcript",
 				accelerator: "CmdOrCtrl+K",
 				action: () => {
-					actions.clearTranscript();
+					currentActions?.clearTranscript();
 				},
 			},
 		],
@@ -223,15 +250,21 @@ async function buildMenu(
 				id: "help_bootstrap_runtime",
 				text: "Run Runtime Bootstrap",
 				action: () => {
-					void actions.bootstrapRuntime();
+					void currentActions?.bootstrapRuntime();
 				},
 			},
 		],
 	});
 
-	return Menu.new({
+	const menu = await Menu.new({
 		items: [fileSubmenu, editSubmenu, viewSubmenu, windowSubmenu, helpSubmenu],
 	});
+
+	return {
+		menu,
+		autoCopyItem: autoCopyMenuItem,
+		compactModeItem: compactModeMenuItem,
+	};
 }
 
 /**
@@ -285,18 +318,54 @@ async function syncLinuxTrayMenu(
 }
 
 async function applyDesktopAppMenu(actions: DesktopMenuActions): Promise<void> {
-	const brandIcon = await loadBrandIcon();
+	// Point the already-installed handlers at the newest callbacks first, so an
+	// early return below still leaves the menu wired to current state.
+	currentActions = actions;
 
-	const appMenu = await buildMenu(actions, brandIcon);
-	await appMenu.setAsAppMenu();
+	if (!installedMenus) {
+		const brandIcon = await loadBrandIcon();
 
-	const trayMenu = await buildMenu(actions, brandIcon);
-	await syncLinuxTrayMenu(trayMenu, await loadTrayIcon());
+		const app = await buildMenu(brandIcon);
+		await app.menu.setAsAppMenu();
+
+		// Menu items are native resources owned by whichever menu they are
+		// attached to, so the tray needs its own instances rather than a shared
+		// set.
+		const tray = await buildMenu(brandIcon);
+		await syncLinuxTrayMenu(tray.menu, await loadTrayIcon());
+
+		installedMenus = { app, tray };
+	} else {
+		// Updating the two check marks in place is what keeps compact mode from
+		// flickering. `setAsAppMenu` re-shows the GTK menu bar on Linux, so
+		// rebuilding on every state change made the bar flash into view and
+		// straight back out — most visibly when starting or stopping a
+		// recording, which changes the toggle callback's identity and so
+		// re-ran this effect. Nothing here touches the window's menu bar.
+		const updates: Promise<void>[] = [];
+		for (const built of [installedMenus.app, installedMenus.tray]) {
+			if (appliedAutoCopy !== actions.isAutoCopyEnabled) {
+				updates.push(built.autoCopyItem.setChecked(actions.isAutoCopyEnabled));
+			}
+			if (appliedCompactMode !== actions.isCompactModeEnabled) {
+				updates.push(
+					built.compactModeItem.setChecked(actions.isCompactModeEnabled),
+				);
+			}
+		}
+		await Promise.all(updates);
+	}
+
+	appliedAutoCopy = actions.isAutoCopyEnabled;
+	appliedCompactMode = actions.isCompactModeEnabled;
 
 	// Compact mode is 200px tall; the menu bar costs ~14% of that for entries
 	// the compact toolbar already covers. The tray keeps them reachable.
-	// Runs after setAsAppMenu, which re-shows the bar on every rebuild.
-	await setDesktopMenuBarVisible(!actions.isCompactModeEnabled);
+	const menuBarVisible = !actions.isCompactModeEnabled;
+	if (appliedMenuBarVisible !== menuBarVisible) {
+		await setDesktopMenuBarVisible(menuBarVisible);
+		appliedMenuBarVisible = menuBarVisible;
+	}
 }
 
 export async function setupDesktopAppMenu(
