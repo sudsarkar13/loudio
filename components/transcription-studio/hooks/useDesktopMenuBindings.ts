@@ -1,5 +1,12 @@
 import { useEffect } from "react";
-import { copyToClipboard, runRuntimeBootstrap, setupDesktopAppMenu } from "@/lib/tauri";
+import {
+  closeDesktopApp,
+  copyToClipboard,
+  isLinuxDesktop,
+  minimizeDesktopAppWindow,
+  runRuntimeBootstrap,
+  setupDesktopAppMenu,
+} from "@/lib/tauri";
 import type { AppSettings } from "@/lib/types";
 
 interface UseDesktopMenuBindingsOptions {
@@ -67,6 +74,77 @@ export function useDesktopMenuBindings({
     setSettings,
     setStatus,
     settings.autoCopy,
+    transcriptDraftRef,
+  ]);
+
+  // Menu accelerators are owned by the GTK menu bar on Linux, so hiding that bar
+  // for compact mode takes every shortcut with it — Ctrl+O, Ctrl+Enter, Ctrl+K
+  // and the rest all stop responding while compact. macOS is unaffected: its
+  // menu lives in the global bar, which compact mode never touches.
+  //
+  // This listener stands in for them, and only while the bar is actually
+  // hidden. Installing it unconditionally would double-fire every shortcut in
+  // general mode, where the native accelerators still work.
+  useEffect(() => {
+    if (!isLinuxDesktop() || !isCompactMode) return;
+
+    const onKeyDown = (event: KeyboardEvent): void => {
+      if (!event.ctrlKey || event.altKey || event.metaKey) return;
+
+      // Match on `code` rather than `key`: with Shift held, `key` reports the
+      // shifted character ("M" not "m"), which makes the two-modifier
+      // shortcuts miss.
+      const run = (action: () => void): void => {
+        event.preventDefault();
+        action();
+      };
+
+      if (event.shiftKey) {
+        switch (event.code) {
+          case "KeyM":
+            return run(() => void onToggleMicRecording());
+          case "KeyC":
+            return run(() => {
+              if (!transcriptDraftRef.current.trim()) {
+                setStatus("No transcript available to copy yet.");
+                return;
+              }
+              void copyToClipboard(transcriptDraftRef.current).then(() => {
+                setStatus("Transcript copied to clipboard.");
+              });
+            });
+          default:
+            return;
+        }
+      }
+
+      switch (event.code) {
+        case "KeyO":
+          return run(() => void onPickAudio());
+        case "Enter":
+          return run(() => void onTranscribe());
+        case "KeyK":
+          return run(clearTranscriptView);
+        case "KeyM":
+          return run(() => void minimizeDesktopAppWindow());
+        case "KeyQ":
+          return run(() => void closeDesktopApp());
+        case "KeyR":
+          return run(() => window.location.reload());
+        default:
+          return;
+      }
+    };
+
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [
+    clearTranscriptView,
+    isCompactMode,
+    onPickAudio,
+    onToggleMicRecording,
+    onTranscribe,
+    setStatus,
     transcriptDraftRef,
   ]);
 }

@@ -6,6 +6,7 @@ import { CheckMenuItem, Menu, Submenu } from "@tauri-apps/api/menu";
 import { TrayIcon } from "@tauri-apps/api/tray";
 
 import {
+	closeDesktopApp,
 	isLinuxDesktop,
 	isTauriRuntime,
 	minimizeDesktopAppWindow,
@@ -153,9 +154,20 @@ async function buildMenu(aboutIcon: MenuIcon): Promise<BuiltMenu> {
 			{
 				item: "Separator",
 			},
-			{
-				item: "Quit",
-			},
+			// The predefined Quit item takes no accelerator — the type only
+			// accepts `text` and `item` — and muda gives it none on Linux, so
+			// Ctrl+Q did nothing there while Cmd+Q worked on macOS, where the
+			// system supplies it. A custom item is the only way to bind it.
+			isLinuxDesktop()
+				? {
+						id: "file_quit",
+						text: "Quit",
+						accelerator: "CmdOrCtrl+Q",
+						action: () => {
+							void closeDesktopApp();
+						},
+					}
+				: { item: "Quit" as const },
 		],
 	});
 
