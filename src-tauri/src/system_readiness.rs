@@ -381,6 +381,28 @@ async fn check_whisper_cpp(app: &AppHandle) -> ReadinessCheck {
     }
 }
 
+/// Runs `<bin> --version` and returns the parsed interpreter version.
+async fn python_installed_version(bin: &str) -> Option<String> {
+    let output = Command::new(bin).arg("--version").output().await.ok()?;
+    // Older CPython prints the banner on stderr.
+    let text = format!(
+        "{}{}",
+        String::from_utf8_lossy(&output.stdout),
+        String::from_utf8_lossy(&output.stderr)
+    );
+    crate::versions::parse_python_version(&text)
+}
+
+/// Version of a package as installed for the given interpreter.
+async fn pip_package_version(python: &str, package: &str) -> Option<String> {
+    let output = Command::new(python)
+        .args(["-m", "pip", "show", package])
+        .output()
+        .await
+        .ok()?;
+    crate::versions::parse_pip_show_version(&String::from_utf8_lossy(&output.stdout))
+}
+
 async fn check_python(app: &AppHandle) -> ReadinessCheck {
     let id = "python".to_string();
     emit_progress(app, &id, 5, "Detecting Python…", false, false);
@@ -398,7 +420,11 @@ async fn check_python(app: &AppHandle) -> ReadinessCheck {
                 name: "Python".to_string(),
                 description: "Runtime for the OpenAI Whisper fallback engine.".to_string(),
                 required: ">=3.10".to_string(),
-                current: Some(candidate.to_string()),
+                current: Some(
+                    python_installed_version(candidate)
+                        .await
+                        .unwrap_or_else(|| candidate.to_string()),
+                ),
                 state: ReadinessState::Installed,
                 action_kind: ReadinessActionKind::None,
                 severity: ReadinessSeverity::Recommended,
@@ -430,13 +456,14 @@ async fn check_openai_whisper(app: &AppHandle) -> ReadinessCheck {
     let id = "openai-whisper".to_string();
     emit_progress(app, &id, 5, "Detecting openai-whisper…", false, false);
 
-    if detect_python_with_whisper().await.is_some() {
+    if let Some(python) = detect_python_with_whisper().await {
+        let version = pip_package_version(&python, "openai-whisper").await;
         return ReadinessCheck {
             id,
             name: "OpenAI Whisper (Python)".to_string(),
             description: "Fallback engine. Used when whisper.cpp is unavailable.".to_string(),
             required: "latest".to_string(),
-            current: Some("system".to_string()),
+            current: Some(version.unwrap_or_else(|| "system".to_string())),
             state: ReadinessState::Installed,
             action_kind: ReadinessActionKind::None,
             severity: ReadinessSeverity::Recommended,
@@ -453,12 +480,14 @@ async fn check_openai_whisper(app: &AppHandle) -> ReadinessCheck {
         if py.exists()
             && command_available(&py.to_string_lossy(), &["-m", "whisper", "--help"]).await
         {
+            let version = pip_package_version(&py.to_string_lossy(), "openai-whisper").await;
+
             return ReadinessCheck {
                 id,
                 name: "OpenAI Whisper (Python)".to_string(),
                 description: "Fallback engine. Used when whisper.cpp is unavailable.".to_string(),
                 required: "latest".to_string(),
-                current: Some("app-local venv".to_string()),
+                current: Some(version.unwrap_or_else(|| "app-local venv".to_string())),
                 state: ReadinessState::Installed,
                 action_kind: ReadinessActionKind::None,
                 severity: ReadinessSeverity::Recommended,

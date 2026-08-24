@@ -33,7 +33,7 @@ pub fn vocabulary_terms(custom: &str, learned: &[LearnedTerm]) -> Vec<String> {
     });
 
     let mut terms: Vec<String> = Vec::new();
-    let mut push_unique = |value: &str, terms: &mut Vec<String>| {
+    let push_unique = |value: &str, terms: &mut Vec<String>| {
         let trimmed = value.trim();
         if trimmed.is_empty() {
             return;
