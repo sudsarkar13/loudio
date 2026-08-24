@@ -40,6 +40,8 @@ export const DEFAULT_SETTINGS: AppSettings = {
 	beamSize: 5,
 	manualEnginePath: "",
 	micDeviceId: "",
+	customVocabulary: "",
+	learnedTerms: [],
 };
 
 export const LANGUAGES: Array<{ value: string; label: string }> = [

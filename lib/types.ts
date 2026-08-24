@@ -17,6 +17,17 @@ export interface AppSettings {
 	beamSize: number;
 	manualEnginePath?: string;
 	micDeviceId?: string;
+	/** Domain terms biased during decoding, one per line. */
+	customVocabulary: string;
+	/** Confirmed corrections replayed after decoding. */
+	learnedTerms: LearnedTerm[];
+}
+
+/** A confirmed `heard -> intended` correction. */
+export interface LearnedTerm {
+	heard: string;
+	intended: string;
+	hits: number;
 }
 
 export interface TranscriptionRequest {
@@ -39,4 +50,10 @@ export interface RecordingHistoryItem {
 	sizeBytes: number;
 	createdAtEpochMs: number;
 	createdAtIso: string;
+}
+
+/** A suggested correction awaiting the user's confirmation. */
+export interface CorrectionCandidate {
+	heard: string;
+	intended: string;
 }

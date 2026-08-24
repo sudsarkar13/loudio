@@ -229,3 +229,15 @@ pub fn set_window_menu_visible(window: tauri::WebviewWindow, visible: bool) -> R
 
     result.map_err(|error| error.to_string())
 }
+
+/// Suggests `heard -> intended` corrections from an edited transcript.
+///
+/// Suggestions only. Nothing is learned until the user confirms, so a typo or
+/// a rephrasing cannot quietly become vocabulary.
+#[tauri::command]
+pub fn suggest_corrections(
+    original: String,
+    edited: String,
+) -> Vec<crate::vocabulary::CorrectionCandidate> {
+    crate::vocabulary::correction_candidates(&original, &edited)
+}

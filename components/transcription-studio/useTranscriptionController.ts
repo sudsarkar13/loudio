@@ -14,6 +14,7 @@ import {
 interface UseTranscriptionControllerReturn {
 	result: TranscriptionResponse | null;
 	transcriptDraft: string;
+	engineTranscript: string;
 	livePreviewTranscript: string;
 	status: string;
 	isTranscribing: boolean;
@@ -35,6 +36,9 @@ interface UseTranscriptionControllerReturn {
 export function useTranscriptionController(): UseTranscriptionControllerReturn {
 	const [result, setResult] = useState<TranscriptionResponse | null>(null);
 	const [transcriptDraft, setTranscriptDraft] = useState<string>("");
+	// What the engine produced, kept so an edit can be diffed against it to
+	// suggest a correction worth learning.
+	const [engineTranscript, setEngineTranscript] = useState<string>("");
 	const [livePreviewTranscript, setLivePreviewTranscript] =
 		useState<string>("");
 	const [status, setStatus] = useState<string>(
@@ -104,6 +108,7 @@ export function useTranscriptionController(): UseTranscriptionControllerReturn {
 			);
 
 			setTranscriptDraft(mergedTranscriptText);
+			setEngineTranscript(mergedTranscriptText);
 			setResult(normalizedResponse);
 			setLivePreviewTranscript("");
 			setStatus(
@@ -158,6 +163,7 @@ export function useTranscriptionController(): UseTranscriptionControllerReturn {
 			);
 
 			setTranscriptDraft(mergedTranscriptText);
+			setEngineTranscript(mergedTranscriptText);
 			setResult(normalizedResponse);
 			setLivePreviewTranscript("");
 			setStatus(
@@ -184,6 +190,7 @@ export function useTranscriptionController(): UseTranscriptionControllerReturn {
 		setResult(null);
 		setLivePreviewTranscript("");
 		setTranscriptDraft("");
+		setEngineTranscript("");
 		setStatus("Transcript view cleared.");
 	}
 
@@ -196,6 +203,7 @@ export function useTranscriptionController(): UseTranscriptionControllerReturn {
 	return {
 		result,
 		transcriptDraft,
+		engineTranscript,
 		livePreviewTranscript,
 		status,
 		isTranscribing,

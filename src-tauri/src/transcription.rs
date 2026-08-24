@@ -251,6 +251,25 @@ pub async fn transcribe_with_whisper_cpp(
         args.push("-tr".into());
     }
 
+    // Beam size and temperature were only ever passed to the Python fallback,
+    // so the Advanced sliders did nothing for the default engine.
+    args.push("-bs".into());
+    args.push(request.settings.beam_size.to_string());
+    args.push("-tp".into());
+    args.push(request.settings.temperature.to_string());
+
+    // Bias decoding toward the user's domain terms. --carry-initial-prompt
+    // reapplies it to every window; without it only the first ~30s benefits,
+    // which is useless for a long dictation.
+    if let Some(prompt) = crate::vocabulary::build_initial_prompt(
+        &request.settings.custom_vocabulary,
+        &request.settings.learned_terms,
+    ) {
+        args.push("--prompt".into());
+        args.push(prompt);
+        args.push("--carry-initial-prompt".into());
+    }
+
     let started = Instant::now();
     run_command(&whisper_cli, &args).await?;
     let elapsed = started.elapsed().as_millis();
@@ -263,6 +282,9 @@ pub async fn transcribe_with_whisper_cpp(
     if workspace.staged {
         let _ = fs::remove_file(&workspace.audio);
     }
+
+    // The prompt only raises the odds; confirmed corrections are exact.
+    let text = crate::vocabulary::apply_learned_terms(&text, &request.settings.learned_terms);
 
     Ok(TranscriptionResponse {
         text,
@@ -319,6 +341,16 @@ pub async fn transcribe_with_python(
     if request.settings.language != "auto" {
         args.push("--language".into());
         args.push(request.settings.language.clone());
+    }
+
+    // Same biasing as the whisper.cpp path, so switching engines does not
+    // silently change how domain terms are transcribed.
+    if let Some(prompt) = crate::vocabulary::build_initial_prompt(
+        &request.settings.custom_vocabulary,
+        &request.settings.learned_terms,
+    ) {
+        args.push("--initial_prompt".into());
+        args.push(prompt);
     }
 
     let mut child = Command::new(&python_bin)
@@ -437,6 +469,10 @@ pub async fn transcribe_with_python(
     };
 
     let _ = fs::remove_dir_all(&output_dir);
+
+    // Applied on both engine paths, so corrections hold regardless of which
+    // engine ran.
+    let text = crate::vocabulary::apply_learned_terms(&text, &request.settings.learned_terms);
 
     Ok(TranscriptionResponse {
         text,

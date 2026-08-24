@@ -2252,3 +2252,23 @@ summary:focus-visible {
 	color: var(--accent, #4da3ff);
 	font-weight: 600;
 }
+
+/* Offer to remember a correction; shown only after the user edits a transcript. */
+.learn-term {
+	display: flex;
+	align-items: center;
+	gap: 0.6rem;
+	flex-wrap: wrap;
+	margin: 0.5rem 0;
+	padding: 0.55rem 0.75rem;
+	border: 1px solid rgba(77, 163, 255, 0.35);
+	border-radius: 0.6rem;
+	background: rgba(77, 163, 255, 0.08);
+	font-size: 0.85rem;
+}
+
+.learn-term-text code {
+	padding: 0.1rem 0.35rem;
+	border-radius: 0.3rem;
+	background: rgba(255, 255, 255, 0.08);
+}

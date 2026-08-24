@@ -1,7 +1,9 @@
+import type { AppSettings } from "@/lib/types";
 import type { Dispatch, SetStateAction } from "react";
 import { Mic } from "lucide-react";
 import { CompactToolbar } from "@/components/transcription-studio/components/CompactToolbar";
 import { TranscriptPanel } from "@/components/transcription-studio/components/TranscriptPanel";
+import { LearnTermPrompt } from "@/components/transcription-studio/components/LearnTermPrompt";
 import type { TranscriptionResponse } from "@/lib/types";
 
 interface WorkspaceActivityViewProps {
@@ -10,6 +12,9 @@ interface WorkspaceActivityViewProps {
 	isTranscribing: boolean;
 	audioPath: string;
 	transcriptDraft: string;
+	engineTranscript: string;
+	settings: AppSettings;
+	setSettings: Dispatch<SetStateAction<AppSettings>>;
 	livePreviewTranscript: string;
 	selectedAudioLabel: string;
 	micBlob: Blob | null;
@@ -37,6 +42,9 @@ export function WorkspaceActivityView({
 	isTranscribing,
 	audioPath,
 	transcriptDraft,
+	engineTranscript,
+	settings,
+	setSettings,
 	livePreviewTranscript,
 	selectedAudioLabel,
 	micBlob,
@@ -122,6 +130,13 @@ export function WorkspaceActivityView({
 			:	null}
 
 			<div className="status status-modern">{status}</div>
+
+			<LearnTermPrompt
+				engineTranscript={engineTranscript}
+				transcriptDraft={transcriptDraft}
+				settings={settings}
+				setSettings={setSettings}
+			/>
 
 			<TranscriptPanel
 				transcriptDraft={transcriptDraft}

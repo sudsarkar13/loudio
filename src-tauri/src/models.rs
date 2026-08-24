@@ -29,6 +29,33 @@ pub struct AppSettings {
     pub temperature: f32,
     pub beam_size: u8,
     pub manual_engine_path: Option<String>,
+    /// Domain terms biased toward during decoding, one per line. Whisper
+    /// conditions on prior text, so naming terms up front makes them likely
+    /// instead of unlikely ("Supabase" rather than "super base").
+    #[serde(default)]
+    pub custom_vocabulary: String,
+    /// Learned `heard -> intended` corrections, applied after decoding.
+    #[serde(default)]
+    pub learned_terms: Vec<LearnedTerm>,
+}
+
+/// One confirmed correction. Stored rather than inferred, so a typo in an
+/// edited transcript never silently becomes vocabulary.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "camelCase")]
+pub struct LearnedTerm {
+    /// What the engine produced, e.g. "super base".
+    pub heard: String,
+    /// What it should have been, e.g. "Supabase".
+    pub intended: String,
+    /// How often this correction has been confirmed; used to rank terms into
+    /// the prompt, which is capped well below an unbounded dictionary.
+    #[serde(default = "one")]
+    pub hits: u32,
+}
+
+fn one() -> u32 {
+    1
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

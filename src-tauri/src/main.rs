@@ -12,6 +12,7 @@ mod recordings;
 mod system_readiness;
 mod transcription;
 mod versions;
+mod vocabulary;
 
 #[cfg(target_os = "linux")]
 fn allow_linux_microphone_requests(webview_window: &tauri::WebviewWindow) -> tauri::Result<()> {
@@ -93,6 +94,7 @@ fn main() {
             commands::current_recordings_output_dir,
             commands::reveal_recordings_output_dir,
             commands::set_window_menu_visible,
+            commands::suggest_corrections,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

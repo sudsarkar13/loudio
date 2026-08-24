@@ -31,6 +31,7 @@ export {
 	updateReadinessItem,
 	startMicrophoneTranscription,
 	startTranscription,
+	suggestCorrections,
 } from "@/lib/tauri/commands";
 
 export type {

@@ -5,6 +5,7 @@ import { convertFileSrc } from "@tauri-apps/api/core";
 
 import { DEFAULT_SETTINGS, RUNTIME_PROFILES } from "@/lib/defaults";
 import type {
+	CorrectionCandidate,
 	AppSettings,
 	RecordingHistoryItem,
 	RuntimeProfile,
@@ -242,4 +243,19 @@ export async function getMicrophoneRecordingPlaybackUrl(
 	}
 
 	return convertFileSrc(absolutePath);
+}
+
+/**
+ * Candidate `heard -> intended` corrections from an edited transcript.
+ * Suggestions only — the user confirms before anything is learned.
+ */
+export async function suggestCorrections(
+	original: string,
+	edited: string,
+): Promise<CorrectionCandidate[]> {
+	if (!isTauriRuntime()) return [];
+	return invokeCommand<CorrectionCandidate[]>("suggest_corrections", {
+		original,
+		edited,
+	});
 }

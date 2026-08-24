@@ -218,6 +218,27 @@ export function SettingsPanel({
 					</div>
 
 					<div>
+						<div className="label">Vocabulary</div>
+						<textarea
+							className="textarea field"
+							rows={3}
+							value={settings.customVocabulary ?? ""}
+							onChange={(event: ChangeEvent<HTMLTextAreaElement>) =>
+								setSettings((prev: AppSettings) => ({
+									...prev,
+									customVocabulary: event.target.value,
+								}))
+							}
+							placeholder={"Supabase\nFlatpak\nCI/CD"}
+						/>
+						<p className="hint">
+							Names and jargon to bias, one per line. Whisper favours these
+							while decoding, so &ldquo;Supabase&rdquo; wins over &ldquo;super
+							base&rdquo;.
+						</p>
+					</div>
+
+					<div>
 						<div className="label">Engine path</div>
 						<input
 							className="field code"

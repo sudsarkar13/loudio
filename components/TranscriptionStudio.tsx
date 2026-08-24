@@ -32,6 +32,7 @@ export function TranscriptionStudio() {
 	const {
 		result,
 		transcriptDraft,
+		engineTranscript,
 		livePreviewTranscript,
 		status,
 		isTranscribing,
@@ -378,6 +379,9 @@ export function TranscriptionStudio() {
 									isTranscribing={isTranscribing}
 									audioPath={audioPath}
 									transcriptDraft={transcriptDraft}
+									engineTranscript={engineTranscript}
+									settings={settings}
+									setSettings={setSettings}
 									livePreviewTranscript={livePreviewTranscript}
 									selectedAudioLabel={selectedAudioLabel}
 									micBlob={micBlob}
