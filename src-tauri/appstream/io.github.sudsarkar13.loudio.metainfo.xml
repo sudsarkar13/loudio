@@ -113,6 +113,22 @@
   </screenshots>
 
   <releases>
+    <release version="1.0.4" date="2026-08-25">
+      <url>https://github.com/sudsarkar13/loudio/releases/tag/v1.0.4</url>
+      <description>
+        <p>
+          Keyboard shortcuts work again in compact mode on Linux, settings are
+          no longer lost, and Loudio is now packaged for the Snap Store.
+        </p>
+        <ul>
+          <li>Stop overwriting stored settings with defaults on startup</li>
+          <li>Carry settings, models and the Python environment across the application ID change</li>
+          <li>Restore Ctrl+O, Ctrl+K, Ctrl+Q and the rest while the menu bar is hidden</li>
+          <li>Stop the menu bar flashing when a recording starts or stops</li>
+          <li>Report real Python and Whisper versions in the readiness wizard</li>
+        </ul>
+      </description>
+    </release>
     <release version="1.0.3" date="2026-08-24">
       <url>https://github.com/sudsarkar13/loudio/releases/tag/v1.0.3</url>
       <description>

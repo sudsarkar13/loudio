@@ -6,6 +6,41 @@ publish a tag with no matching section.
 
 ## [Unreleased]
 
+## [v1.0.4] - 2026-08-25
+
+### 🐛 Fixed Bugs & Issues
+- **Stored settings were being overwritten with defaults on startup.** The
+  persist effect ran on mount with the default settings while loading was gated
+  behind the readiness check, so anyone who quit before the app finished starting
+  lost their settings — since v1.0.3 that included the custom vocabulary and
+  every learned correction.
+- **Keyboard shortcuts stopped working in compact mode on Linux.** Menu
+  accelerators belong to the GTK menu bar, so hiding it for compact mode disabled
+  `Ctrl+O`, `Ctrl+Enter`, `Ctrl+K`, `Ctrl+Shift+M` and the rest. They are handled
+  directly while the bar is hidden.
+- **`Ctrl+Q` never worked on Linux at all.** The predefined Quit item takes no
+  accelerator and muda assigns none on Linux, where macOS gets `Cmd+Q` from the
+  system.
+- **The menu bar flashed on every recording start and stop.** Toggling a
+  recording rebuilt the whole native menu, and re-applying it re-shows the GTK
+  menu bar. The menu is built once and updated in place.
+- The readiness wizard reported `python3` and `app-local venv` as versions —
+  a command name and a location. Both now report what is actually installed.
+
+### 🚀 Highlights & Features
+- **Loudio is packaged for the Snap Store and Flathub.** Both bundle FFmpeg and
+  whisper.cpp, so there is no dependency setup step at all: install, launch,
+  transcribe. The readiness wizard detects a sandboxed install and stops
+  offering actions it cannot perform there.
+
+### 🧹 Changed
+- **The application ID is now `io.github.sudsarkar13.loudio`.** The old
+  `com.loudio.desktop` asserted ownership of a domain this project does not
+  control, which the stores do not accept. Settings, downloaded models, the
+  Python environment and recordings are carried across automatically on first
+  launch — the runtime directory is moved rather than copied, so a multi-gigabyte
+  environment is not duplicated.
+
 ## [v1.0.3] - 2026-08-24
 
 ### 🚀 Highlights & Features

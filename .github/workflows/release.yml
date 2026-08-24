@@ -463,11 +463,35 @@ jobs:
         with:
           ref: ${{ needs.validate.outputs.tag }}
 
+      # Publishing is opt-in, the same way Apple signing is: with no credential
+      # set, the snap is still built and attached to the release, and only the
+      # store upload is skipped. A missing secret must not turn a good release
+      # red.
+      - name: Check for store credentials
+        id: creds
+        env:
+          SNAPCRAFT_STORE_CREDENTIALS: ${{ secrets.SNAPCRAFT_STORE_CREDENTIALS }}
+        run: |
+          set -euo pipefail
+          if [ -n "${SNAPCRAFT_STORE_CREDENTIALS:-}" ]; then
+            echo "publish=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "publish=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::SNAPCRAFT_STORE_CREDENTIALS is not set — building the snap but not uploading it."
+          fi
+
       - name: Build the snap
         id: build
         uses: snapcore/action-build@v1
 
+      - name: Attach the snap to the release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ needs.validate.outputs.tag }}
+          files: ${{ steps.build.outputs.snap }}
+
       - name: Publish to the beta channel
+        if: steps.creds.outputs.publish == 'true'
         uses: snapcore/action-publish@v1
         env:
           SNAPCRAFT_STORE_CREDENTIALS: ${{ secrets.SNAPCRAFT_STORE_CREDENTIALS }}
