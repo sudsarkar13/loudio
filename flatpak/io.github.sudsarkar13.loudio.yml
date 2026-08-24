@@ -28,6 +28,9 @@ build-options:
   append-path: /usr/lib/sdk/rust-stable/bin:/usr/lib/sdk/node24/bin
   env:
     CARGO_HOME: /run/build/loudio/cargo
+    # Keep Yarn's cache inside the build tree rather than in a HOME that may
+    # not be writable.
+    YARN_ENABLE_GLOBAL_CACHE: 'false'
 
 finish-args:
   - --socket=wayland
@@ -64,20 +67,44 @@ modules:
       # offline sources before submitting.
       build-args:
         - --share=network
+    # One script, not a list: flatpak-builder runs each command in a fresh
+    # sandbox, where only the module's own source directory persists. A
+    # directory created by one command is gone by the next.
     build-commands:
-      - corepack enable
-      - corepack prepare "yarn@$(node -p 'require(\"./package.json\").packageManager.split(\"@\")[1]')" --activate
-      - yarn install --immutable
-      - yarn build
-      - cargo build --release --manifest-path src-tauri/Cargo.toml --offline || cargo build --release --manifest-path src-tauri/Cargo.toml
-      - install -Dm755 src-tauri/target/release/loudio /app/bin/loudio
-      - install -Dm644 src-tauri/appstream/io.github.sudsarkar13.loudio.metainfo.xml
+      - |
+        set -eu
+
+        # Corepack's cache must live outside the source tree. package.json
+        # declares "type": "module", so a cached yarn.js below it is loaded as
+        # ESM and dies with `Dynamic require of "util" is not supported`.
+        # Its shims cannot go in the node prefix either — the SDK is read-only.
+        export COREPACK_HOME=/run/corepack
+        mkdir -p "${COREPACK_HOME}/bin"
+        export PATH="${COREPACK_HOME}/bin:${PATH}"
+
+        corepack enable --install-directory "${COREPACK_HOME}/bin"
+        corepack prepare --activate      # reads packageManager from package.json
+
+        yarn install --immutable
+        yarn build                       # next build -> ./out, the frontendDist
+        cargo build --release --manifest-path src-tauri/Cargo.toml
+
+        install -Dm755 src-tauri/target/release/loudio /app/bin/loudio
+        install -Dm644 src-tauri/appstream/io.github.sudsarkar13.loudio.metainfo.xml \
           /app/share/metainfo/io.github.sudsarkar13.loudio.metainfo.xml
-      - install -Dm644 flatpak/io.github.sudsarkar13.loudio.desktop
+        # The metainfo is shared with the .deb, which names its desktop file
+        # Loudio.desktop. appstreamcli compose resolves the icon through the
+        # first launchable, finds no such file here, and rejects the component
+        # with gui-app-without-icon. Drop the entry that does not apply.
+        sed -i '/>Loudio.desktop</d' \
+          /app/share/metainfo/io.github.sudsarkar13.loudio.metainfo.xml
+        install -Dm644 flatpak/io.github.sudsarkar13.loudio.desktop \
           /app/share/applications/io.github.sudsarkar13.loudio.desktop
-      - install -Dm644 src-tauri/icons/128x128.png
+        install -Dm644 src-tauri/icons/64x64.png \
+          /app/share/icons/hicolor/64x64/apps/io.github.sudsarkar13.loudio.png
+        install -Dm644 src-tauri/icons/128x128.png \
           /app/share/icons/hicolor/128x128/apps/io.github.sudsarkar13.loudio.png
-      - install -Dm644 src-tauri/icons/icon.png
+        install -Dm644 src-tauri/icons/icon.png \
           /app/share/icons/hicolor/512x512/apps/io.github.sudsarkar13.loudio.png
     sources:
       - type: dir
