@@ -22,6 +22,7 @@ interface ReadinessCheckCardProps {
 	progress: ReadinessProgressEvent | undefined;
 	isInstalling: boolean;
 	onInstall: (id: string) => void;
+	onUpdate: (id: string) => void;
 	onSkip: (id: string) => void;
 	index?: number;
 }
@@ -121,11 +122,15 @@ export function ReadinessCheckCard({
 	progress,
 	isInstalling,
 	onInstall,
+	onUpdate,
 	onSkip,
 	index = 0,
 }: ReadinessCheckCardProps) {
 	const [showCommand, setShowCommand] = useState<boolean>(false);
 	const [copied, setCopied] = useState<boolean>(false);
+	// Updating is opt-in and two-step: nothing runs until the user confirms the
+	// exact version, so a stray click cannot alter a working install.
+	const [confirmingUpdate, setConfirmingUpdate] = useState<boolean>(false);
 
 	const manualCommand =
 		check.manualCommand ?? (isInstalling ? (progress?.message ?? "") : "");
@@ -236,6 +241,37 @@ export function ReadinessCheckCard({
 									{actionLabel(check.actionKind)}
 								</span>
 							</button>
+						:	null}
+
+						{check.available ?
+							confirmingUpdate ?
+								<>
+									<button
+										type="button"
+										className="btn btn-primary"
+										disabled={isInstalling}
+										onClick={() => {
+											setConfirmingUpdate(false);
+											onUpdate(check.id);
+										}}>
+										Confirm update to {check.available}
+									</button>
+									<button
+										type="button"
+										className="btn btn-ghost"
+										disabled={isInstalling}
+										onClick={() => setConfirmingUpdate(false)}>
+										Cancel
+									</button>
+								</>
+							:	<button
+									type="button"
+									className="btn btn-ghost"
+									disabled={isInstalling}
+									onClick={() => setConfirmingUpdate(true)}>
+									Update to {check.available}
+								</button>
+
 						:	null}
 
 						{check.state === "missing" && check.severity !== "required" ?

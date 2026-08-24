@@ -45,6 +45,7 @@ export function SystemReadinessWizard({
 		isInitialCheckComplete,
 		check,
 		install,
+		update,
 		skip,
 		resetSkips,
 		enterApp,
@@ -60,6 +61,13 @@ export function SystemReadinessWizard({
 			await install(id);
 		},
 		[install],
+	);
+
+	const onUpdate = useCallback(
+		async (id: string) => {
+			await update(id);
+		},
+		[update],
 	);
 
 	const onSkip = useCallback(
@@ -225,6 +233,9 @@ export function SystemReadinessWizard({
 									isInstalling={installingId === check.id}
 									onInstall={(id) => {
 										void onInstall(id);
+									}}
+									onUpdate={(id) => {
+										void onUpdate(id);
 									}}
 									onSkip={(id) => {
 										void onSkip(id);

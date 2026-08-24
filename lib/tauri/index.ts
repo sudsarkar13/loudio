@@ -28,6 +28,7 @@ export {
 	runRuntimeBootstrap,
 	savePersistedSettings,
 	skipReadinessItem,
+	updateReadinessItem,
 	startMicrophoneTranscription,
 	startTranscription,
 } from "@/lib/tauri/commands";

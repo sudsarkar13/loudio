@@ -235,7 +235,11 @@ async fn check_ffmpeg(app: &AppHandle) -> ReadinessCheck {
             required: ">=4.0".to_string(),
             current: Some(current),
             state: ReadinessState::Installed,
-            action_kind: ReadinessActionKind::None,
+            action_kind: if available.is_some() {
+                ReadinessActionKind::Update
+            } else {
+                ReadinessActionKind::None
+            },
             severity: ReadinessSeverity::Required,
             manual_command: None,
             detail: None,
@@ -341,10 +345,21 @@ async fn check_whisper_cpp(app: &AppHandle) -> ReadinessCheck {
             required: ">=1.5.0".to_string(),
             current: Some(installed.unwrap_or(bin)),
             state: ReadinessState::Installed,
-            action_kind: ReadinessActionKind::None,
+            // Installed and working. An Update action appears only when a
+            // strictly newer stable release exists, and it is never applied
+            // without the user pressing the button.
+            action_kind: if available.is_some() {
+                ReadinessActionKind::Update
+            } else {
+                ReadinessActionKind::None
+            },
             severity: ReadinessSeverity::Required,
-            manual_command: None,
-            detail: None,
+            manual_command: available
+                .as_ref()
+                .map(|_| manual_command_for("whisper-cpp", "update")),
+            detail: available
+                .as_ref()
+                .map(|version| format!("Stable {version} is available. Updating is optional.")),
             platform_supported: true,
             available,
         };
@@ -556,6 +571,15 @@ pub fn manual_command_for(id: &str, action: &str) -> String {
             "windows" => "winget install -e --id ggml.whisper-cpp".to_string(),
             _ => "Install whisper.cpp from https://github.com/ggerganov/whisper.cpp".to_string(),
         },
+        ("whisper-cpp", "update") => match os {
+            "macos" => "brew upgrade whisper-cpp".to_string(),
+            // --stable is load-bearing: a bare `snap refresh` follows whatever
+            // channel the snap tracks, which can be beta or edge. Updates are
+            // only ever offered from the stable channel, so pin it explicitly.
+            "linux" => "sudo snap refresh whisper-cpp --stable".to_string(),
+            "windows" => "winget upgrade -e --id ggml.whisper-cpp".to_string(),
+            _ => "Update whisper.cpp from https://github.com/ggerganov/whisper.cpp".to_string(),
+        },
         ("python", "install") => match os {
             "macos" => "brew install python@3.11".to_string(),
             "linux" => "sudo apt-get install -y python3 python3-pip python3-venv".to_string(),
@@ -714,6 +738,156 @@ fn all_required_pass(report: &ReadinessReport) -> bool {
             ReadinessState::Installed | ReadinessState::Skipped
         )
     })
+}
+
+/// Applies an already-offered stable update.
+///
+/// Deliberately a separate command from `install_readiness_item`: updating is
+/// never a side effect of a readiness scan or of installing something else. It
+/// runs only when the user presses Update on a check that is already reporting
+/// a newer stable release, so consent is explicit and per-item.
+///
+/// Re-checks before acting. The offer the UI is showing may be stale — the
+/// channel can move, or another process may have upgraded the tool already —
+/// and applying a stale offer could downgrade a working install.
+#[tauri::command]
+pub async fn update_readiness_item(app: AppHandle, id: String) -> Result<ReadinessCheck, String> {
+    emit_progress(&app, &id, 0, "Checking for a stable update…", false, false);
+
+    let current = match id.as_str() {
+        "ffmpeg" => check_ffmpeg(&app).await,
+        "whisper-cpp" => check_whisper_cpp(&app).await,
+        other => return Err(format!("No stable update channel is known for {other}.")),
+    };
+
+    let Some(target) = current.available.clone() else {
+        emit_progress(
+            &app,
+            &id,
+            100,
+            "Already on the latest stable release.",
+            true,
+            false,
+        );
+        return Ok(current);
+    };
+
+    let result = match id.as_str() {
+        "ffmpeg" => update_ffmpeg(&app, &target).await,
+        "whisper-cpp" => update_whisper_cpp(&app, &target).await,
+        other => Err(anyhow!("Unknown readiness item: {other}")),
+    };
+
+    match result {
+        Ok(check) => {
+            emit_progress(&app, &id, 100, "Updated.", true, false);
+            Ok(check)
+        }
+        Err(error) => {
+            let message = format!("{error:#}");
+            emit_progress(&app, &id, 100, &message, true, true);
+            Err(message)
+        }
+    }
+}
+
+async fn update_whisper_cpp(app: &AppHandle, target: &str) -> Result<ReadinessCheck> {
+    match current_os() {
+        "macos" => {
+            let brew = ensure_homebrew_available()
+                .await
+                .context("Homebrew is required to update whisper.cpp on macOS")?;
+            emit_progress(
+                app,
+                "whisper-cpp",
+                60,
+                "Running: brew upgrade whisper-cpp",
+                false,
+                false,
+            );
+            run_command(&brew, &["upgrade".into(), "whisper-cpp".into()])
+                .await
+                .context("brew upgrade whisper-cpp failed")?;
+        }
+        "linux" => {
+            ensure_linux_privilege_app(app, "whisper-cpp", "snap refresh whisper-cpp --stable")
+                .await?;
+            emit_progress(
+                app,
+                "whisper-cpp",
+                60,
+                &format!("Running: sudo snap refresh whisper-cpp --stable (to {target})"),
+                false,
+                false,
+            );
+            // --stable, never a bare refresh: the tracked channel may be beta.
+            run_command(
+                "sudo",
+                &[
+                    "-n".into(),
+                    "snap".into(),
+                    "refresh".into(),
+                    "whisper-cpp".into(),
+                    "--stable".into(),
+                ],
+            )
+            .await
+            .context("snap refresh whisper-cpp --stable failed")?;
+        }
+        other => return Err(anyhow!("Automatic updates are not supported on {other}")),
+    }
+
+    Ok(check_whisper_cpp(app).await)
+}
+
+async fn update_ffmpeg(app: &AppHandle, target: &str) -> Result<ReadinessCheck> {
+    match current_os() {
+        "macos" => {
+            let brew = ensure_homebrew_available()
+                .await
+                .context("Homebrew is required to update FFmpeg on macOS")?;
+            emit_progress(
+                app,
+                "ffmpeg",
+                60,
+                "Running: brew upgrade ffmpeg",
+                false,
+                false,
+            );
+            run_command(&brew, &["upgrade".into(), "ffmpeg".into()])
+                .await
+                .context("brew upgrade ffmpeg failed")?;
+        }
+        "linux" => {
+            ensure_linux_privilege_app(app, "ffmpeg", "apt-get install --only-upgrade -y ffmpeg")
+                .await?;
+            emit_progress(
+                app,
+                "ffmpeg",
+                60,
+                &format!("Running: sudo apt-get install --only-upgrade ffmpeg (to {target})"),
+                false,
+                false,
+            );
+            // --only-upgrade so this can never pull in a fresh install tree.
+            run_command(
+                "sudo",
+                &[
+                    "-n".into(),
+                    "apt-get".into(),
+                    "install".into(),
+                    "--only-upgrade".into(),
+                    "-y".into(),
+                    "ffmpeg".into(),
+                ],
+            )
+            .await
+            .context("apt-get install --only-upgrade ffmpeg failed")?;
+        }
+        other => return Err(anyhow!("Automatic updates are not supported on {other}")),
+    }
+
+    Ok(check_ffmpeg(app).await)
 }
 
 #[tauri::command]

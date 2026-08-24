@@ -78,6 +78,7 @@ fn main() {
             bootstrap::bootstrap_runtime,
             system_readiness::check_system_readiness,
             system_readiness::install_readiness_item,
+            system_readiness::update_readiness_item,
             system_readiness::skip_readiness_item,
             system_readiness::reset_readiness_skips,
             system_readiness::read_full_license,

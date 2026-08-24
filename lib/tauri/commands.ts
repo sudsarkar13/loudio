@@ -59,6 +59,23 @@ export async function checkSystemReadiness(
 	});
 }
 
+/**
+ * Applies a stable update the user has explicitly confirmed.
+ *
+ * Separate from installReadinessItem so an update can never happen as a side
+ * effect of a readiness scan or of installing something else.
+ */
+export async function updateReadinessItem(
+	id: string,
+): Promise<ReadinessCheck> {
+	if (!isTauriRuntime()) {
+		throw new Error(
+			"System readiness updater is available in the Tauri desktop app.",
+		);
+	}
+	return invokeCommand<ReadinessCheck>("update_readiness_item", { id });
+}
+
 export async function installReadinessItem(
 	id: string,
 ): Promise<ReadinessCheck> {

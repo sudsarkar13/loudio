@@ -5,6 +5,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
 	checkSystemReadiness,
 	installReadinessItem,
+	updateReadinessItem,
 	isTauriRuntime,
 	listenReadinessProgress,
 	resetReadinessSkips,
@@ -38,6 +39,7 @@ export interface UseSystemReadinessWizardResult {
 	isInitialCheckComplete: boolean;
 	check: (forceFull?: boolean) => Promise<ReadinessReport | null>;
 	install: (id: string) => Promise<ReadinessCheck | null>;
+	update: (id: string) => Promise<ReadinessCheck | null>;
 	skip: (id: string) => Promise<void>;
 	resetSkips: () => Promise<void>;
 	enterApp: () => void;
@@ -174,8 +176,12 @@ export function useSystemReadinessWizard(): UseSystemReadinessWizardResult {
 		void check(false);
 	}, [check]);
 
-	const install = useCallback(
-		async (id: string): Promise<ReadinessCheck | null> => {
+	const runReadinessAction = useCallback(
+		async (
+			id: string,
+			invoke: (id: string) => Promise<ReadinessCheck>,
+			doneMessage: string,
+		): Promise<ReadinessCheck | null> => {
 			await wireListener();
 			setInstallingId(id);
 			setStage("installing");
@@ -191,7 +197,7 @@ export function useSystemReadinessWizard(): UseSystemReadinessWizardResult {
 			}));
 			setOverallPercent(5);
 			try {
-				const result = await installReadinessItem(id);
+				const result = await invoke(id);
 				if (!mountedRef.current) return result;
 				setReport((prev) => {
 					if (!prev) return prev;
@@ -205,7 +211,7 @@ export function useSystemReadinessWizard(): UseSystemReadinessWizardResult {
 					[id]: {
 						id,
 						percent: 100,
-						message: "Installed.",
+						message: doneMessage,
 						done: true,
 						error: false,
 					},
@@ -241,6 +247,19 @@ export function useSystemReadinessWizard(): UseSystemReadinessWizardResult {
 			}
 		},
 		[hasAcknowledged, wireListener],
+	);
+
+	const install = useCallback(
+		(id: string): Promise<ReadinessCheck | null> =>
+			runReadinessAction(id, installReadinessItem, "Installed."),
+		[runReadinessAction],
+	);
+
+	// Only ever called from the Update button's confirmation, never from a scan.
+	const update = useCallback(
+		(id: string): Promise<ReadinessCheck | null> =>
+			runReadinessAction(id, updateReadinessItem, "Updated."),
+		[runReadinessAction],
 	);
 
 	const skip = useCallback(
@@ -326,6 +345,7 @@ export function useSystemReadinessWizard(): UseSystemReadinessWizardResult {
 		isInitialCheckComplete,
 		check,
 		install,
+		update,
 		skip,
 		resetSkips,
 		enterApp,
