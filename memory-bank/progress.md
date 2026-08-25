@@ -29,7 +29,7 @@
    - added frontend `useSystemReadinessWizard` + wizard/drift components
    - removed in-app EULA gate; installer license dialog remains the single legal-acceptance surface
    - added `AboutPanel` for license visibility inside the app
-   - both `yarn build` and `yarn tauri:build` pass clean
+   - both `yarn build` and `yarn tauri:build` pass clean with 0 warnings (resolved platform-specific `use tauri::Manager` warning via `#[cfg(target_os = "linux")]`)
 
 ## Open items
 

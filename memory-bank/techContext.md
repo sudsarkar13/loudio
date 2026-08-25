@@ -28,7 +28,7 @@
 ## Validation workflow
 - Web build: `yarn build`
 - Desktop bundle build: `yarn tauri:build`
-- Rust check (fast): `cargo check --manifest-path /Users/lexprotech/Documents/GitHub/loudio/src-tauri/Cargo.toml`
+- Rust check (fast, zero warnings): `cargo check --manifest-path /Users/lexprotech/Documents/GitHub/loudio/src-tauri/Cargo.toml`
 - TS check (optional explicit): `npx tsc --noEmit`
 - Repo status check: `git status --short --branch`
 
@@ -39,6 +39,7 @@
   - `core:window:allow-minimize`
   - `core:window:allow-set-minimizable`
 - Verified code presence for compact-mode and transcript updates through targeted symbol search.
+- Cleaned Rust warnings: conditioned `use tauri::Manager` on `#[cfg(target_os = "linux")]` in `src-tauri/src/main.rs` to maintain 0-warning compilation across macOS/Windows/Linux release builds.
 
 ## Current caveats
 - Lint script currently misbehaves in this environment (`yarn lint` / `next lint` resolving `.../loudio/lint` as project dir). Build/TS/Rust checks can still be used as interim quality gates.

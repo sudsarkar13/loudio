@@ -76,6 +76,10 @@ yarn typecheck
 cargo check --manifest-path src-tauri/Cargo.toml
 ```
 
+Ensure `cargo check` compiles with **0 warnings**. If platform-specific traits or imports
+are needed (such as `tauri::Manager` for Linux webview permission hooks in `src-tauri/src/main.rs`),
+gate them with `#[cfg(target_os = "...")]` to prevent unused import warnings on macOS / Windows builds.
+
 For anything touching the transcription engines, also run the app and transcribe
 once on the platform you changed. `cargo check` passing has never been evidence
 that transcription works — the v1.0.1 Linux failures all compiled cleanly.

@@ -18,7 +18,8 @@ Premium first-run experience: replace the in-app EULA gate with a System Readine
   - New `AboutPanel` opened from the top strip shows the full MIT license text via the new Rust `read_full_license` command.
 - **Builds validated:**
   - `yarn build` — clean
-  - `yarn tauri:build` — produces `Loudio.app` and `Loudio_0.1.0_aarch64.dmg`
+  - `cargo check --manifest-path src-tauri/Cargo.toml` — clean (0 warnings)
+  - `yarn tauri:build` — produces `Loudio.app` and `Loudio_1.0.4_aarch64.dmg` with zero compiler warnings (fixed `use tauri::Manager` unused import on macOS)
 
 ## Validation status
 
