@@ -7,6 +7,45 @@
 **Offline Transcription Studio for macOS + Ubuntu**  
 Loudio is a desktop app built with **Tauri + Next.js** for fast, local transcription of both audio files and microphone recordings.
 
+<p align="center">
+  <a href="https://snapcraft.io/loudio">
+    <picture>
+      <source media="(prefers-color-scheme: dark)" srcset="https://snapcraft.io/en/light/install.svg" />
+      <img alt="Get it from the Snap Store" src="https://snapcraft.io/en/dark/install.svg" height="56" />
+    </picture>
+  </a>
+</p>
+
+## Install
+
+### Ubuntu / Debian
+
+The snap is the easiest route — it carries `ffmpeg` and `whisper.cpp` inside the
+package, so there is nothing to install afterwards.
+
+```bash
+sudo snap install loudio --beta
+```
+
+It is on the **beta** channel while strict confinement gets real-world use; a
+stable release follows once that is proven.
+
+The `.deb` is the alternative for anyone who would rather not use snap. It uses
+the system's `ffmpeg` and `whisper-cli`, so those have to be present:
+
+```bash
+# from https://github.com/sudsarkar13/loudio/releases/latest
+sudo apt install ./Loudio_<version>_amd64.deb
+```
+
+### macOS
+
+Download `Loudio_<version>_aarch64.dmg` from the
+[latest release](https://github.com/sudsarkar13/loudio/releases/latest). The
+build is unsigned, so the first launch needs **right-click → Open**.
+
+A Flathub package is in preparation.
+
 ## Why Loudio
 
 Loudio is designed for users who want:
@@ -26,6 +65,7 @@ Loudio is designed for users who want:
 - 🧩 **Native desktop menu integration** (File/Edit/View/Window/Help)
 - 🍎 **macOS packaging support** (`.app`, `.dmg`) with custom icons
 - 🐧 **Ubuntu packaging support** (`.deb`) for Debian-based Linux distributions
+- 📦 **Snap package** with `ffmpeg` and `whisper.cpp` bundled — no separate setup
 
 ## Tech Stack
 
@@ -129,7 +169,7 @@ Recommended local checks:
 
 ```bash
 npx tsc --noEmit
-cargo check --manifest-path /Users/lexprotech/Documents/GitHub/loudio/src-tauri/Cargo.toml
+cargo check --manifest-path src-tauri/Cargo.toml
 ```
 
 ## Troubleshooting
@@ -154,6 +194,7 @@ every artifact and publishes the GitHub Release:
 | :-- | :-- |
 | `Loudio_<version>_aarch64.dmg` | macOS, Apple Silicon (M1 and later) |
 | `Loudio_<version>_amd64.deb` | Ubuntu / Debian |
+| `loudio_<version>_amd64.snap` | Ubuntu / any snapd distribution |
 | `SHA256SUMS` | checksums for all of the above |
 
 Intel Macs are not built for. Apple is ending Intel support in macOS, and an
