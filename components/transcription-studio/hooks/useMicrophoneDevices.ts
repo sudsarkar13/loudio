@@ -82,6 +82,17 @@ export function useMicrophoneDevices(): UseMicrophoneDevicesResult {
 		setIsEnumerating(true);
 		try {
 			const raw = await readAudioInputDevices();
+
+			// Labels are the portable permission signal. A browser only exposes
+			// device labels once capture has been granted, so a non-empty one
+			// proves access — where `navigator.permissions.query({name:
+			// "microphone"})` is simply unsupported in WKWebView and rejects,
+			// which left macOS reporting "no permission" forever and showing a
+			// "Grant microphone access" button that had nothing left to grant.
+			if (raw.some((device) => (device.label ?? "").trim().length > 0)) {
+				setHasPermission(true);
+			}
+
 			const mapped: MicrophoneDevice[] = [
 				DEFAULT_DEVICE,
 				...raw.map((device, index) => toMicrophoneDevice(device, index)),
@@ -150,11 +161,13 @@ export function useMicrophoneDevices(): UseMicrophoneDevicesResult {
 
 		void refresh();
 		void detectMicrophonePermission().then((granted) => {
-			setHasPermission(granted);
-			if (granted) {
-				// Permission already granted: re-query to populate labels.
-				void refresh();
-			}
+			// Only ever promotes. The query is unsupported on some webviews and
+			// resolves false there, which would otherwise undo the label-based
+			// detection above.
+			if (!granted) return;
+			setHasPermission(true);
+			// Permission already granted: re-query to populate labels.
+			void refresh();
 		});
 
 		const handleDeviceChange = () => {

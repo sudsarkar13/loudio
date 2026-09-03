@@ -449,6 +449,17 @@ async fn capture_window(app: &tauri::AppHandle) -> Result<String> {
     let path = dir.join(format!("{}.png", uuid::Uuid::new_v4()));
     let target = path.to_string_lossy().to_string();
 
+    // Raised and focused first. The capture below takes a *screen region*, not a
+    // window, so anything overlapping those coordinates — an editor, a terminal —
+    // is what would land in the file instead of the app. The short settle lets
+    // the compositor finish the raise before the shutter.
+    if let Some(window) = app.get_webview_window("main") {
+        let _ = window.unminimize();
+        let _ = window.show();
+        let _ = window.set_focus();
+        tokio::time::sleep(std::time::Duration::from_millis(250)).await;
+    }
+
     #[cfg(target_os = "macos")]
     {
         // Cropped to the window rather than the whole display. A full-screen

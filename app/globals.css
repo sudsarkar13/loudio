@@ -2272,3 +2272,104 @@ summary:focus-visible {
 	border-radius: 0.3rem;
 	background: rgba(255, 255, 255, 0.08);
 }
+
+/* ---------------------------------------------------------------------------
+ * Settings panel grouping
+ *
+ * The panel is a single column of near-identical selects. Without headings
+ * there is nothing to say which control affects decoding accuracy, which
+ * affects the recording, and which affects the output — so the eye has to read
+ * every label to find one. These are section markers, not fields, so they sit
+ * deliberately quieter than `.label`.
+ * ------------------------------------------------------------------------- */
+.settings-group-label {
+	margin: 0.5rem 0 -0.1rem;
+	color: var(--text-faint);
+	font-size: 0.68rem;
+	font-weight: 600;
+	letter-spacing: 0.09em;
+	text-transform: uppercase;
+	display: flex;
+	align-items: center;
+	gap: 0.5rem;
+}
+
+/* A rule that fills the remaining width, so groups read as bands rather than
+   as stray words. */
+.settings-group-label::after {
+	content: "";
+	flex: 1;
+	height: 1px;
+	background: linear-gradient(90deg, var(--border-soft), transparent);
+}
+
+/* The first group needs no top margin: the "Settings" title already spaces it. */
+.settings-grid > .settings-group-label:first-child {
+	margin-top: 0;
+}
+
+/* ---------------------------------------------------------------------------
+ * Runtime bootstrap progress
+ * ------------------------------------------------------------------------- */
+.runtime-progress-title {
+	display: inline-flex;
+	align-items: center;
+	gap: 0.45rem;
+	font-weight: 600;
+	color: var(--text);
+}
+
+.runtime-progress-value {
+	font-variant-numeric: tabular-nums;
+	color: var(--text-muted);
+}
+
+/* Bootstrap can sit at a single percentage for a long stretch while a model
+   downloads. A moving spinner distinguishes "slow" from "stuck", which a static
+   bar cannot. */
+.runtime-spinner {
+	width: 12px;
+	height: 12px;
+	border-radius: 50%;
+	border: 2px solid rgba(47, 129, 247, 0.25);
+	border-top-color: var(--focus);
+	animation: loudio-spin 700ms linear infinite;
+}
+
+@keyframes loudio-spin {
+	to {
+		transform: rotate(360deg);
+	}
+}
+
+/* At 0% the bar is clamped to a 2% sliver so it reads as "starting" rather than
+   as an empty, possibly broken, control. The sliver pulses to make clear it is
+   not yet reporting real progress. */
+.runtime-progress-fill-idle {
+	animation: loudio-pulse 1.4s ease-in-out infinite;
+}
+
+@keyframes loudio-pulse {
+	0%,
+	100% {
+		opacity: 0.45;
+	}
+	50% {
+		opacity: 1;
+	}
+}
+
+/* Ties the status line to the work in progress above it, so the two read as one
+   state rather than as two unrelated messages. */
+.status-busy {
+	border-color: rgba(47, 129, 247, 0.35);
+	color: var(--text);
+}
+
+/* Everything animated here is decorative; honour a reduced-motion preference. */
+@media (prefers-reduced-motion: reduce) {
+	.runtime-spinner,
+	.runtime-progress-fill-idle {
+		animation: none;
+	}
+}

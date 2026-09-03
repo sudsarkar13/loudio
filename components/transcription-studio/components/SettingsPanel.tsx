@@ -97,23 +97,6 @@ export function SettingsPanel({
 					</select>
 				</div>
 
-				<p className="settings-group-label">Input</p>
-
-				<div>
-					<MicrophoneSelector
-						settings={settings}
-						setSettings={setSettings}
-						microphoneDevices={microphoneDevices}
-						selectedMicrophoneDeviceId={selectedMicrophoneDeviceId}
-						hasMicrophonePermission={hasMicrophonePermission}
-						isEnumeratingMicrophones={isEnumeratingMicrophones}
-						microphoneErrorMessage={microphoneErrorMessage}
-						onRequestMicrophonePermission={onRequestMicrophonePermission}
-						onRefreshMicrophoneDevices={onRefreshMicrophoneDevices}
-						variant="panel"
-					/>
-				</div>
-
 				<div>
 					<div className="label">Model</div>
 					<select
@@ -132,6 +115,23 @@ export function SettingsPanel({
 							</option>
 						))}
 					</select>
+				</div>
+
+				<p className="settings-group-label">Input</p>
+
+				<div>
+					<MicrophoneSelector
+						settings={settings}
+						setSettings={setSettings}
+						microphoneDevices={microphoneDevices}
+						selectedMicrophoneDeviceId={selectedMicrophoneDeviceId}
+						hasMicrophonePermission={hasMicrophonePermission}
+						isEnumeratingMicrophones={isEnumeratingMicrophones}
+						microphoneErrorMessage={microphoneErrorMessage}
+						onRequestMicrophonePermission={onRequestMicrophonePermission}
+						onRefreshMicrophoneDevices={onRefreshMicrophoneDevices}
+						variant="panel"
+					/>
 				</div>
 
 				<p className="settings-group-label">Output</p>
@@ -174,7 +174,7 @@ export function SettingsPanel({
 								task: event.target.value as AppSettings["task"],
 							}))
 						}>
-						<option value="transcribe">Transcribe (keep spoken language)</option>
+						<option value="transcribe">Transcribe</option>
 						<option value="translate">Translate to English</option>
 					</select>
 					<div className="helper">

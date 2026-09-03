@@ -27,7 +27,10 @@ export function TranscriptPanel({
       {showMeta ? (
         <div className="transcript-head">
           <p className="helper">
-            {wordCount}w · {characterCount}c
+            {/* Spelled out: "0w · 0c" reads as a code rather than a count, and
+                the panel has room for the words. */}
+            {wordCount} {wordCount === 1 ? "word" : "words"} ·{" "}
+            {characterCount} {characterCount === 1 ? "character" : "characters"}
             {result?.languageDetected ? ` · ${result.languageDetected}` : ""}
           </p>
           <span className="pill pill-soft">{result?.modelUsed ?? "—"}</span>
