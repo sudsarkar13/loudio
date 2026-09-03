@@ -38,12 +38,27 @@ pub async fn command_available(bin: &str, args: &[&str]) -> bool {
         .is_ok_and(|o| o.status.success())
 }
 
+/// Maps a `MediaRecorder` blob type onto the file extension to store it under.
+///
+/// The essence is matched on its own: a blob's type carries codec parameters
+/// (`audio/webm;codecs=opus`, `audio/mp4;codecs=mp4a.40.2`), and matching the
+/// full string meant anything parameterised other than webm fell through to the
+/// catch-all and was written as `.webm` regardless of what it actually held.
 pub fn mime_type_to_extension(mime_type: Option<&str>) -> &'static str {
-    match mime_type.unwrap_or_default() {
-        "audio/wav" | "audio/x-wav" | "audio/wave" => "wav",
-        "audio/mp4" | "audio/m4a" | "audio/x-m4a" => "m4a",
-        "audio/ogg" => "ogg",
-        "audio/mpeg" => "mp3",
+    let essence = mime_type
+        .unwrap_or_default()
+        .split(';')
+        .next()
+        .unwrap_or_default()
+        .trim()
+        .to_ascii_lowercase();
+
+    match essence.as_str() {
+        "audio/wav" | "audio/x-wav" | "audio/wave" | "audio/vnd.wave" => "wav",
+        "audio/mp4" | "audio/m4a" | "audio/x-m4a" | "audio/aac" => "m4a",
+        "audio/ogg" | "application/ogg" => "ogg",
+        "audio/mpeg" | "audio/mp3" => "mp3",
+        "audio/flac" | "audio/x-flac" => "flac",
         _ => "webm",
     }
 }

@@ -113,6 +113,7 @@ fn main() {
             commands::transcribe_microphone_audio,
             commands::list_microphone_recordings,
             commands::recordings_disk_usage,
+            commands::ensure_playback_audio,
             commands::delete_microphone_recording,
             commands::list_legacy_recording_dirs,
             commands::migrate_legacy_recordings,

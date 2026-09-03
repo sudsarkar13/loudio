@@ -109,6 +109,72 @@ pub fn list_microphone_recordings(
     Ok(items)
 }
 
+/// Resolves a recording to a file the webview can actually play, converting it
+/// if need be.
+///
+/// A microphone capture is stored in whatever container `MediaRecorder`
+/// produced — on macOS that is WebM/Opus. Two things make those unplayable in an
+/// `<audio>` element even where the codec is supported: `MediaRecorder` writes a
+/// streaming WebM with no Duration in its Segment Info, so the element reports
+/// an infinite duration and the scrubber never works; and playback support for
+/// the container varies by webview.
+///
+/// Normally the wav written during transcription covers this. It is missing
+/// whenever transcription never ran, ffmpeg was unavailable at the time, or the
+/// app was closed mid-run — which strands the capture as a history entry that
+/// refuses to play. Converting on demand repairs those, once, in place.
+pub async fn ensure_playback_audio(
+    app: tauri::AppHandle,
+    absolute_path: String,
+) -> Result<String, String> {
+    let output_dir = recordings_output_dir(&app).map_err(|e| e.to_string())?;
+    let canonical_output = fs::canonicalize(&output_dir)
+        .map_err(|e| format!("Failed to resolve recordings directory: {e}"))?;
+
+    let candidate = PathBuf::from(&absolute_path);
+    if !candidate.is_file() {
+        return Err("Recording file no longer exists.".into());
+    }
+
+    let canonical_candidate = fs::canonicalize(&candidate)
+        .map_err(|e| format!("Failed to resolve recording path: {e}"))?;
+
+    // Same containment check the delete path uses: this hands a path to ffmpeg
+    // and writes next to it, so it must not be steerable outside the recordings
+    // directory.
+    if !canonical_candidate.starts_with(&canonical_output)
+        || !is_mic_recording_file(&canonical_candidate)
+    {
+        return Err("Refusing to convert files outside Loudio recordings directory.".into());
+    }
+
+    let extension = canonical_candidate
+        .extension()
+        .and_then(|value| value.to_str())
+        .map(|value| value.to_ascii_lowercase())
+        .unwrap_or_default();
+
+    if extension == "wav" {
+        return Ok(canonical_candidate.to_string_lossy().to_string());
+    }
+
+    let wav_path = canonical_candidate.with_extension("wav");
+    if wav_path.is_file() {
+        return Ok(wav_path.to_string_lossy().to_string());
+    }
+
+    crate::binaries::convert_audio_to_wav_16k(&canonical_candidate, &wav_path)
+        .await
+        .map_err(|error| {
+            // A failed run can still have created a truncated output; leaving it
+            // behind would make every later call return an unplayable file.
+            let _ = fs::remove_file(&wav_path);
+            format!("Failed to prepare {extension} recording for playback: {error:#}")
+        })?;
+
+    Ok(wav_path.to_string_lossy().to_string())
+}
+
 /// Total on-disk size (in bytes) of all microphone recordings in the output dir.
 /// Used by the UI to surface storage usage so users can confirm cleanups.
 pub fn recordings_disk_usage(app: &tauri::AppHandle) -> Result<u64, String> {

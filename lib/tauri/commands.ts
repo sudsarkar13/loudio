@@ -235,6 +235,15 @@ export async function deleteMicrophoneRecording(
 	await invokeCommand<void>("delete_microphone_recording", { absolutePath });
 }
 
+/**
+ * Resolves a recording to an asset URL the webview can actually play.
+ *
+ * A capture is stored in whatever container MediaRecorder produced, and a
+ * WebM/Opus one will not play back reliably in an `<audio>` element — it also
+ * carries no duration, so the scrubber has nothing to work with. The backend
+ * hands back the wav sibling, converting the capture once if that wav is
+ * missing.
+ */
 export async function getMicrophoneRecordingPlaybackUrl(
 	absolutePath: string,
 ): Promise<string> {
@@ -242,7 +251,17 @@ export async function getMicrophoneRecordingPlaybackUrl(
 		return absolutePath;
 	}
 
-	return convertFileSrc(absolutePath);
+	let playablePath: string = absolutePath;
+	try {
+		playablePath = await invokeCommand<string>("ensure_playback_audio", {
+			absolutePath,
+		});
+	} catch {
+		// Conversion is a repair step, not a precondition: fall back to the
+		// original file so a format the webview *can* handle still plays.
+	}
+
+	return convertFileSrc(playablePath);
 }
 
 /**

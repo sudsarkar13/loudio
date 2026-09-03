@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
 	enterCompactWindowMode,
 	exitCompactWindowMode,
@@ -59,12 +59,24 @@ export function useCompactWindowMode({
 	const [compactAnchor, setCompactAnchor] =
 		useState<CompactWindowAnchor>("bottom");
 
+	/**
+	 * Whether the stored preferences have been read yet.
+	 *
+	 * State starts at the non-compact defaults and the persist effects below fire
+	 * on mount, so without this the first commit writes `false` over a stored
+	 * `true` — losing compact mode for anyone whose app is closed in the window
+	 * between mount and hydration.
+	 */
+	const hasHydratedRef = useRef<boolean>(false);
+
 	useEffect(() => {
 		setIsCompactMode(readStoredCompactMode());
 		setCompactAnchor(readStoredCompactAnchor());
+		hasHydratedRef.current = true;
 	}, []);
 
 	useEffect(() => {
+		if (!hasHydratedRef.current) return;
 		persistCompactMode(isCompactMode);
 	}, [isCompactMode]);
 
@@ -84,6 +96,7 @@ export function useCompactWindowMode({
 	}, [isCompactMode]);
 
 	useEffect(() => {
+		if (!hasHydratedRef.current) return;
 		persistCompactAnchor(compactAnchor);
 	}, [compactAnchor]);
 

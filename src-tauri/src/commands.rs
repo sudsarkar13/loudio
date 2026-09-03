@@ -177,6 +177,16 @@ pub fn list_microphone_recordings(
     crate::recordings::list_microphone_recordings(app)
 }
 
+/// Returns a path for `absolute_path` that the webview can play, converting the
+/// capture to wav first when its own container is not playable.
+#[tauri::command]
+pub async fn ensure_playback_audio(
+    app: tauri::AppHandle,
+    absolute_path: String,
+) -> Result<String, String> {
+    crate::recordings::ensure_playback_audio(app, absolute_path).await
+}
+
 #[tauri::command]
 pub fn recordings_disk_usage(app: tauri::AppHandle) -> Result<u64, String> {
     crate::recordings::recordings_disk_usage(&app)
