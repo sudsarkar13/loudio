@@ -232,6 +232,107 @@ pub fn venv_python_path(venv_dir: &PathBuf) -> PathBuf {
     venv_dir.join("bin").join("python3")
 }
 
+/// Oldest Python the fallback runtime supports. Matches the readiness check, so
+/// the app cannot build a venv from an interpreter it would then report as too
+/// old.
+const MIN_PYTHON: (u32, u32) = (3, 10);
+
+/// Reads `major.minor machine` back from the interpreter probe below.
+///
+/// Split out from the spawn so the parsing is testable: a wrong answer here
+/// silently picks the wrong interpreter, which is not something a running app
+/// makes obvious.
+fn parse_python_probe(output: &str) -> Option<(u32, u32, String)> {
+    let line = output.lines().find(|line| !line.trim().is_empty())?;
+    let mut parts = line.split_whitespace();
+
+    let version = parts.next()?;
+    let machine = parts.next()?.to_string();
+
+    let (major, minor) = version.split_once('.')?;
+    Some((major.parse().ok()?, minor.parse().ok()?, machine))
+}
+
+/// Whether an interpreter is new enough *and* built for the machine it will run
+/// on.
+///
+/// The architecture half is not theoretical. A universal2 interpreter can
+/// resolve x86_64 wheels on an arm64 Mac, which produces a venv whose torch
+/// loads on no machine at all — `import torch` dies inside `dlopen` with a
+/// linker error that says nothing about why.
+fn python_is_suitable(major: u32, minor: u32, machine: &str, host_machine: &str) -> bool {
+    if (major, minor) < MIN_PYTHON {
+        return false;
+    }
+    machine.eq_ignore_ascii_case(host_machine)
+}
+
+fn host_machine() -> &'static str {
+    // `std::env::consts::ARCH` uses Rust's spelling; Python's `platform.machine()`
+    // uses the platform's. They agree on x86_64 but not on arm64/aarch64.
+    match std::env::consts::ARCH {
+        "aarch64" => {
+            if cfg!(target_os = "macos") {
+                "arm64"
+            } else {
+                "aarch64"
+            }
+        }
+        other => other,
+    }
+}
+
+/// Interpreters to consider when building the venv, best first.
+///
+/// Bare names alone are not enough: a packaged `.app` launched from Finder
+/// inherits a minimal PATH (`/usr/bin:/bin:/usr/sbin:/sbin`), so `python3`
+/// resolves to the system interpreter regardless of what the user installed.
+/// That is exactly how this project's reference machine ended up building its
+/// venv from a Python its own readiness check rejects as too old.
+fn venv_python_candidates() -> Vec<String> {
+    let prefixes = ["/opt/homebrew/bin/", "/usr/local/bin/", "/usr/bin/", ""];
+    let mut candidates = Vec::new();
+
+    // Newest first, so a machine with several installed gets the best one.
+    for minor in (MIN_PYTHON.1..=15).rev() {
+        for prefix in prefixes {
+            candidates.push(format!("{prefix}python3.{minor}"));
+        }
+    }
+    for prefix in prefixes {
+        candidates.push(format!("{prefix}python3"));
+    }
+
+    candidates
+}
+
+/// Picks an interpreter suitable for building the fallback venv.
+pub async fn resolve_venv_python() -> Option<String> {
+    let host = host_machine();
+
+    for candidate in venv_python_candidates() {
+        let probe = run_command(
+            &candidate,
+            &[
+                "-c".into(),
+                "import sys,platform;print(f'{sys.version_info.major}.{sys.version_info.minor} {platform.machine()}')".into(),
+            ],
+        )
+        .await;
+
+        let Ok((stdout, _)) = probe else { continue };
+        let Some((major, minor, machine)) = parse_python_probe(&stdout) else {
+            continue;
+        };
+
+        if python_is_suitable(major, minor, &machine, host) {
+            return Some(candidate);
+        }
+    }
+
+    None
+}
+
 pub async fn ensure_python_whisper_runtime(app: &tauri::AppHandle) -> Result<String> {
     if let Some(system_python) = detect_python_with_whisper().await {
         return Ok(system_python);
@@ -252,8 +353,17 @@ pub async fn ensure_python_whisper_runtime(app: &tauri::AppHandle) -> Result<Str
     }
 
     if !venv_python.exists() {
+        let base_python = resolve_venv_python().await.ok_or_else(|| {
+            anyhow!(
+                "No suitable Python found. Loudio's Whisper fallback needs Python {}.{} or newer, \
+                 built for this machine's CPU architecture.",
+                MIN_PYTHON.0,
+                MIN_PYTHON.1
+            )
+        })?;
+
         run_command(
-            "python3",
+            &base_python,
             &[
                 "-m".into(),
                 "venv".into(),
@@ -352,4 +462,45 @@ pub async fn detect_whisper_cli(manual_engine_path: Option<&str>) -> Option<Stri
     }
 
     None
+}
+
+#[cfg(test)]
+mod python_selection_tests {
+    use super::{parse_python_probe, python_is_suitable};
+
+    #[test]
+    fn reads_version_and_machine_from_the_probe() {
+        assert_eq!(
+            parse_python_probe("3.12 arm64\n"),
+            Some((3, 12, "arm64".to_string()))
+        );
+        assert_eq!(
+            parse_python_probe("3.10 x86_64"),
+            Some((3, 10, "x86_64".to_string()))
+        );
+    }
+
+    #[test]
+    fn malformed_probe_output_is_rejected() {
+        assert_eq!(parse_python_probe(""), None);
+        assert_eq!(parse_python_probe("3.12"), None);
+        assert_eq!(parse_python_probe("not a version arm64"), None);
+    }
+
+    #[test]
+    fn rejects_interpreters_below_the_floor() {
+        // The reference machine's venv was built from this one, which the
+        // readiness check simultaneously reported as too old.
+        assert!(!python_is_suitable(3, 9, "arm64", "arm64"));
+        assert!(python_is_suitable(3, 10, "arm64", "arm64"));
+        assert!(python_is_suitable(3, 14, "arm64", "arm64"));
+    }
+
+    /// The failure that motivated the check: right version, wrong architecture,
+    /// producing a venv whose torch cannot be loaded.
+    #[test]
+    fn rejects_an_interpreter_built_for_another_architecture() {
+        assert!(!python_is_suitable(3, 12, "x86_64", "arm64"));
+        assert!(python_is_suitable(3, 12, "x86_64", "x86_64"));
+    }
 }

@@ -74,6 +74,7 @@ fn translator_script_path(app: &tauri::AppHandle) -> Result<PathBuf> {
 /// not at the mercy of shell quoting.
 const TRANSLATOR_SOURCE: &str = r#"
 import json
+import re
 import sys
 
 # Read the job from stdin: the transcript can be long and can contain anything,
@@ -88,12 +89,53 @@ model = AutoModelForSeq2SeqLM.from_pretrained(model_id)
 
 target_id = tokenizer.convert_tokens_to_ids(job["target"])
 
-# NLLB was trained on single sentences; feeding it a whole transcript truncates
-# at the model's limit and silently drops the tail. Splitting on blank-line
-# paragraphs keeps the structure whisper produced.
-chunks = [c for c in job["text"].split("\n") if c.strip()]
-out = []
-for chunk in chunks:
+# NLLB is a sentence-level model: hand it a whole transcript and it translates
+# the opening and stops, silently discarding the rest. Splitting on sentence
+# boundaries is what keeps the tail.
+#
+# The terminators include the Devanagari danda and double danda. Without them a
+# Hindi transcript has no recognised boundary at all, arrives as one chunk, and
+# loses everything after the first sentence -- which is exactly how this was
+# found.
+SENTENCE_END = re.compile(r"(?<=[.!?\u0964\u0965])\s+")
+
+# Kept well under the model's 512-token limit; characters are a cheap proxy that
+# errs on the safe side for scripts that tokenize densely.
+MAX_CHUNK_CHARS = 220
+
+
+def split_line(line):
+    """One chunk per sentence.
+
+    Sentences are deliberately never merged back together, even when several
+    would fit inside the limit. The limit guards the tokenizer; the split guards
+    against the model translating the first sentence and stopping, and packing
+    sentences back into one chunk to "save" a pass silently reintroduces exactly
+    that. Only an over-long sentence is broken further, on whitespace, so the
+    tokenizer never truncates the tail away.
+    """
+    pieces = []
+    for part in SENTENCE_END.split(line):
+        part = part.strip()
+        if not part:
+            continue
+        if len(part) <= MAX_CHUNK_CHARS:
+            pieces.append(part)
+            continue
+
+        buffer = ""
+        for word in part.split():
+            if buffer and len(buffer) + len(word) + 1 > MAX_CHUNK_CHARS:
+                pieces.append(buffer)
+                buffer = word
+            else:
+                buffer = f"{buffer} {word}".strip() if buffer else word
+        if buffer:
+            pieces.append(buffer)
+    return pieces
+
+
+def translate(chunk):
     encoded = tokenizer(chunk, return_tensors="pt", truncation=True, max_length=512)
     generated = model.generate(
         **encoded,
@@ -101,9 +143,18 @@ for chunk in chunks:
         max_length=512,
         num_beams=job.get("beams", 4),
     )
-    out.append(tokenizer.batch_decode(generated, skip_special_tokens=True)[0])
+    return tokenizer.batch_decode(generated, skip_special_tokens=True)[0]
 
-sys.stdout.write(json.dumps({"text": "\n".join(out)}))
+
+# Line structure is preserved: whisper's paragraph breaks carry meaning, so
+# sentences are rejoined within their own line rather than flattened.
+lines_out = []
+for line in job["text"].split("\n"):
+    if not line.strip():
+        continue
+    lines_out.append(" ".join(translate(c) for c in split_line(line.strip())))
+
+sys.stdout.write(json.dumps({"text": "\n".join(lines_out)}))
 "#;
 
 /// Confirms torch is not just installed but actually loadable.
