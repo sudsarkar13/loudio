@@ -74,8 +74,13 @@ export function MicrophoneSelector({
 			{showInlineHelper ?
 				<div className="helper">{helperText}</div>
 			:	null}
-			{!hasMicrophonePermission ?
-				<div className="mic-permission-row">
+			{/* Refresh is always available: a Bluetooth headset paired while the
+			    app is running should be selectable without a restart. The
+			    devicechange event covers most cases, but it is unreliable
+			    across webviews, so the manual escape hatch stays. Granting, by
+			    contrast, is only offered when there is something left to grant. */}
+			<div className="mic-permission-row">
+				{!hasMicrophonePermission ?
 					<button
 						type="button"
 						className="btn mic-permission-btn"
@@ -84,17 +89,18 @@ export function MicrophoneSelector({
 						}}>
 						Grant microphone access
 					</button>
-					<button
-						type="button"
-						className="btn mic-permission-btn"
-						onClick={() => {
-							void onRefreshMicrophoneDevices();
-						}}
-						disabled={isEnumeratingMicrophones}>
-						Refresh
-					</button>
-				</div>
-			:	null}
+				:	null}
+				<button
+					type="button"
+					className="btn mic-permission-btn"
+					onClick={() => {
+						void onRefreshMicrophoneDevices();
+					}}
+					disabled={isEnumeratingMicrophones}
+					title="Re-scan for microphones, including newly connected Bluetooth devices">
+					{isEnumeratingMicrophones ? "Refreshing…" : "Refresh"}
+				</button>
+			</div>
 			{microphoneErrorMessage ?
 				<div className="helper helper-error" role="status">
 					{microphoneErrorMessage}
