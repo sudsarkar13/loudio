@@ -12,6 +12,7 @@ import {
 	minimizeDesktopAppWindow,
 	setDesktopMenuBarVisible,
 } from "@/lib/tauri";
+import { revealDiagnosticsLogs } from "@/lib/diagnostics";
 
 const TRAY_ICON_ID = "loudio-main-tray";
 
@@ -263,6 +264,13 @@ async function buildMenu(aboutIcon: MenuIcon): Promise<BuiltMenu> {
 				text: "Run Runtime Bootstrap",
 				action: () => {
 					void currentActions?.bootstrapRuntime();
+				},
+			},
+			{
+				id: "help_open_logs",
+				text: "Open Diagnostic Logs…",
+				action: () => {
+					void revealDiagnosticsLogs();
 				},
 			},
 		],

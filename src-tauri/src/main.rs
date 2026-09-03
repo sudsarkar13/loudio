@@ -6,6 +6,7 @@ use tauri::Manager;
 mod binaries;
 mod bootstrap;
 mod commands;
+mod diagnostics;
 mod install_flavor;
 mod legacy_migration;
 mod models;
@@ -121,6 +122,9 @@ fn main() {
             commands::reveal_recordings_output_dir,
             commands::set_window_menu_visible,
             commands::suggest_corrections,
+            diagnostics::log_diagnostic_event,
+            diagnostics::read_diagnostics_log,
+            diagnostics::reveal_diagnostics_logs,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

@@ -42,7 +42,16 @@ sudo apt install ./Loudio_<version>_amd64.deb
 
 Download `Loudio_<version>_aarch64.dmg` from the
 [latest release](https://github.com/sudsarkar13/loudio/releases/latest). The
-build is unsigned, so the first launch needs **right-click → Open**.
+build is ad-hoc signed rather than notarized, so the first launch needs
+**right-click → Open** to get past the "unidentified developer" prompt.
+
+Releases up to and including **v1.0.4** shipped without a bundle signature, so
+macOS may instead refuse them with **"Loudio is damaged and can't be opened"** —
+which right-click → Open cannot dismiss. Clear the quarantine flag instead:
+
+```bash
+xattr -dr com.apple.quarantine /Applications/Loudio.app
+```
 
 A Flathub package is in preparation.
 

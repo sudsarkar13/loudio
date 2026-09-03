@@ -117,6 +117,24 @@ pub async fn transcribe_microphone_audio(
         .join("output")
         .join(format!("mic-{}.{}", Uuid::new_v4(), extension));
 
+    // Continues the timeline the webview started: pairing the blob size the
+    // frontend logged with the file that reached disk is what tells a capture
+    // that produced nothing apart from one that failed to save.
+    crate::diagnostics::record(
+        &app,
+        &crate::diagnostics::DiagnosticEvent {
+            level: "info".into(),
+            scope: "transcribe".into(),
+            message: "Microphone payload received".into(),
+            fields: serde_json::json!({
+                "bytes": bytes.len(),
+                "mimeType": request.mime_type,
+                "extension": extension,
+                "file": input_path.file_name().map(|n| n.to_string_lossy().to_string()),
+            }),
+        },
+    );
+
     fs::write(&input_path, bytes).map_err(|e| format!("Failed to save microphone audio: {e}"))?;
 
     emit_transcription_progress(
@@ -150,6 +168,15 @@ pub async fn transcribe_microphone_audio(
     if let Err(error) = crate::binaries::convert_audio_to_wav_16k(&input_path, &prepared_path).await
     {
         let message = format!("Failed to convert microphone audio before transcription: {error:#}");
+        crate::diagnostics::record(
+            &app,
+            &crate::diagnostics::DiagnosticEvent {
+                level: "error".into(),
+                scope: "transcribe".into(),
+                message: "ffmpeg conversion failed".into(),
+                fields: serde_json::json!({ "detail": format!("{error:#}") }),
+            },
+        );
         emit_transcription_progress(&app, None, message.clone(), true, true);
         return Err(message);
     }
@@ -159,7 +186,25 @@ pub async fn transcribe_microphone_audio(
         settings: request.settings,
     };
 
-    let result = transcribe_audio(app, transcribe_request).await;
+    let result = transcribe_audio(app.clone(), transcribe_request).await;
+
+    crate::diagnostics::record(
+        &app,
+        &crate::diagnostics::DiagnosticEvent {
+            level: if result.is_ok() { "info".into() } else { "error".into() },
+            scope: "transcribe".into(),
+            message: "Microphone transcription finished".into(),
+            fields: match &result {
+                Ok(response) => serde_json::json!({
+                    "ok": true,
+                    "elapsedMs": response.elapsed_ms as u64,
+                    "modelUsed": response.model_used,
+                    "textChars": response.text.len(),
+                }),
+                Err(error) => serde_json::json!({ "ok": false, "detail": error }),
+            },
+        },
+    );
 
     // Only the scratch copy is disposable. The wav written next to a non-wav
     // capture is what recording history plays back, so it has to stay.

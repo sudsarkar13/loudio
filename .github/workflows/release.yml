@@ -330,11 +330,51 @@ jobs:
 
           echo "enabled=true" >> "$GITHUB_OUTPUT"
 
-      - name: Build unsigned .dmg
+      # Ad-hoc signed ("-"), not left bare.
+      #
+      # Without an identity the bundler skips codesign entirely, but the linker
+      # has already ad-hoc signed the arm64 Mach-O. That leaves a bundle whose
+      # binary claims a signature while Contents/_CodeSignature does not exist,
+      # and both `codesign --verify` and `spctl` reject it with:
+      #
+      #   code has no resources but signature indicates they must be present
+      #
+      # Gatekeeper surfaces that on a quarantined download as "Loudio is damaged
+      # and can't be opened", which right-click -> Open cannot dismiss. Whether a
+      # given download trips it depends only on whether it carries the quarantine
+      # flag, which is why the same broken bundle can look fine when fetched with
+      # curl and dead when fetched with a browser.
+      #
+      # Verified against the published v1.0.3 and v1.0.4 .dmg files: both are
+      # "adhoc, linker-signed" with no _CodeSignature, and both fail to verify.
+      # Signing the bundle ad-hoc makes it "valid on disk", leaving only the
+      # ordinary "unidentified developer" prompt that right-click -> Open clears.
+      # Still a stopgap: set the APPLE_* secrets for a notarized build.
+      - name: Build ad-hoc signed .dmg
+        if: steps.signing.outputs.enabled != 'true'
+        env:
+          APPLE_SIGNING_IDENTITY: "-"
+        run: |
+          unset APPLE_CERTIFICATE APPLE_CERTIFICATE_PASSWORD
+          yarn tauri build --bundles dmg
+
+      - name: Verify the .app carries a signature
         if: steps.signing.outputs.enabled != 'true'
         run: |
-          unset APPLE_CERTIFICATE APPLE_CERTIFICATE_PASSWORD APPLE_SIGNING_IDENTITY
-          yarn tauri build --bundles dmg
+          set -euo pipefail
+          shopt -s nullglob
+          found=0
+          for app in src-tauri/target/release/bundle/macos/*.app; do
+            found=1
+            echo "Verifying $app"
+            # Fails the build rather than shipping another "damaged" download.
+            codesign --verify --deep --strict --verbose=2 "$app"
+          done
+          if [ "$found" -eq 0 ]; then
+            echo "::error::No .app bundle found to verify."
+            exit 1
+          fi
+          echo "Bundle signature verified; the .dmg will not read as damaged."
 
       - name: Build signed .dmg
         if: steps.signing.outputs.enabled == 'true'

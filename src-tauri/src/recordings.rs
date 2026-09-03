@@ -169,10 +169,51 @@ pub async fn ensure_playback_audio(
             // A failed run can still have created a truncated output; leaving it
             // behind would make every later call return an unplayable file.
             let _ = fs::remove_file(&wav_path);
+
+            if starts_mid_stream(&canonical_candidate) {
+                return "This recording is missing its container header, so it cannot be \
+                        played or transcribed. It was captured by a build affected by the \
+                        overlapping-recorder bug, which discarded the header when a second \
+                        recording started on top of the first. The audio is not recoverable."
+                    .to_string();
+            }
+
             format!("Failed to prepare {extension} recording for playback: {error:#}")
         })?;
 
     Ok(wav_path.to_string_lossy().to_string())
+}
+
+/// EBML magic — the first bytes of any complete WebM/Matroska file.
+const EBML_HEADER: [u8; 4] = [0x1a, 0x45, 0xdf, 0xa3];
+/// Matroska Cluster id. A file opening on one of these is a mid-stream fragment.
+const MATROSKA_CLUSTER: [u8; 4] = [0x1f, 0x43, 0xb6, 0x75];
+
+/// Whether `header` begins part-way through a Matroska stream rather than at its
+/// start.
+///
+/// Split out from the file read so the byte check itself is testable. The
+/// distinction is worth drawing because a headerless capture is unrecoverable —
+/// the Opus initialisation data lives in the header that is missing — and saying
+/// so is far more use than relaying a generic ffmpeg parse error.
+fn header_starts_mid_stream(header: &[u8]) -> bool {
+    if header.starts_with(&EBML_HEADER) {
+        return false;
+    }
+    header.starts_with(&MATROSKA_CLUSTER)
+}
+
+fn starts_mid_stream(path: &std::path::Path) -> bool {
+    use std::io::Read;
+
+    let Ok(mut file) = fs::File::open(path) else {
+        return false;
+    };
+    let mut header = [0u8; 4];
+    match file.read_exact(&mut header) {
+        Ok(()) => header_starts_mid_stream(&header),
+        Err(_) => false,
+    }
 }
 
 /// Total on-disk size (in bytes) of all microphone recordings in the output dir.
@@ -522,4 +563,32 @@ pub fn migrate_legacy_recordings(app: &tauri::AppHandle) -> Result<LegacyMigrati
     }
 
     Ok(result)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::header_starts_mid_stream;
+
+    #[test]
+    fn a_complete_webm_starts_with_the_ebml_header() {
+        assert!(!header_starts_mid_stream(&[0x1a, 0x45, 0xdf, 0xa3]));
+    }
+
+    /// Every unrecoverable capture on the reporting machine opened on a Cluster:
+    /// the overlapping-recorder race reset the shared chunk buffer, discarding
+    /// the header the first recorder had already emitted.
+    #[test]
+    fn a_capture_opening_on_a_cluster_is_mid_stream() {
+        assert!(header_starts_mid_stream(&[0x1f, 0x43, 0xb6, 0x75]));
+    }
+
+    /// Only the Cluster case is claimed. Anything else is left to ffmpeg, whose
+    /// own error is more informative than a guess would be.
+    #[test]
+    fn other_containers_are_not_claimed() {
+        // "RIFF", i.e. a wav.
+        assert!(!header_starts_mid_stream(&[0x52, 0x49, 0x46, 0x46]));
+        assert!(!header_starts_mid_stream(&[]));
+        assert!(!header_starts_mid_stream(&[0x1f]));
+    }
 }

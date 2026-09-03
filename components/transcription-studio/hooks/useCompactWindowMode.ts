@@ -11,6 +11,7 @@ import {
 	COMPACT_ANCHOR_STORAGE_KEY,
 	COMPACT_MODE_STORAGE_KEY,
 } from "@/components/transcription-studio/constants";
+import { logDiagnostic } from "@/lib/diagnostics";
 
 export interface UseCompactWindowModeResult {
 	isCompactMode: boolean;
@@ -102,6 +103,12 @@ export function useCompactWindowMode({
 
 	useEffect(() => {
 		if (isCheckingEula || !hasAcceptedEula) return;
+
+		// Stamped into the log so a microphone failure can be lined up against
+		// the window transition that preceded it.
+		logDiagnostic("info", "window", "Applying window mode", {
+			mode: isCompactMode ? "compact" : "general",
+		});
 
 		if (isCompactMode) {
 			void enterCompactWindowMode();

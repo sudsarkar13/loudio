@@ -96,3 +96,56 @@ pub fn emit_transcription_progress(
         },
     );
 }
+
+#[cfg(test)]
+mod tests {
+    use super::mime_type_to_extension;
+
+    /// The Linux capture path always reports `audio/wav`, so this mapping is
+    /// what keeps recordings on that platform from being filed as `.webm`.
+    #[test]
+    fn maps_linux_audiocontext_wav() {
+        assert_eq!(mime_type_to_extension(Some("audio/wav")), "wav");
+        assert_eq!(mime_type_to_extension(Some("audio/x-wav")), "wav");
+    }
+
+    #[test]
+    fn maps_webm_with_codec_parameters() {
+        assert_eq!(mime_type_to_extension(Some("audio/webm")), "webm");
+        assert_eq!(
+            mime_type_to_extension(Some("audio/webm;codecs=opus")),
+            "webm"
+        );
+    }
+
+    /// The regression this function was changed for: matching the full MIME
+    /// string sent every parameterised type that was not webm to the catch-all,
+    /// so an MP4 capture was written to a `.webm` file it could not be read from.
+    #[test]
+    fn parameterised_types_are_not_misfiled_as_webm() {
+        assert_eq!(
+            mime_type_to_extension(Some("audio/mp4;codecs=mp4a.40.2")),
+            "m4a"
+        );
+        assert_eq!(mime_type_to_extension(Some("audio/wav;codecs=1")), "wav");
+        assert_eq!(
+            mime_type_to_extension(Some("audio/ogg; codecs=opus")),
+            "ogg"
+        );
+    }
+
+    #[test]
+    fn ignores_case_and_surrounding_space() {
+        assert_eq!(mime_type_to_extension(Some("AUDIO/WAV")), "wav");
+        assert_eq!(mime_type_to_extension(Some("  audio/mpeg  ")), "mp3");
+    }
+
+    /// webm remains the fallback: it is what MediaRecorder produces by default,
+    /// and ffmpeg sniffs the real container regardless of the extension.
+    #[test]
+    fn falls_back_to_webm_when_unknown_or_absent() {
+        assert_eq!(mime_type_to_extension(None), "webm");
+        assert_eq!(mime_type_to_extension(Some("")), "webm");
+        assert_eq!(mime_type_to_extension(Some("application/octet-stream")), "webm");
+    }
+}

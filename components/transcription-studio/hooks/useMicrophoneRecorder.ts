@@ -4,6 +4,33 @@ import {
 	resolvePreferredMicMimeType,
 } from "@/components/transcription-studio/utils/audio";
 import { isTauriRuntime } from "@/lib/tauri/runtime";
+import { describeError, logDiagnostic } from "@/lib/diagnostics";
+
+/**
+ * Reports what a live track is actually doing.
+ *
+ * `muted` is the one that matters: WebKit sets it when it interrupts capture
+ * (the page stops being visible, another app takes the device, the system
+ * suspends input). A muted track keeps producing frames of silence rather than
+ * erroring, so from the UI it looks exactly like a microphone that recorded
+ * nothing.
+ */
+function describeTrack(stream: MediaStream): Record<string, unknown> {
+	const track = stream.getAudioTracks()[0];
+	if (!track) return { trackCount: 0 };
+
+	const settings = track.getSettings?.() ?? {};
+	return {
+		trackCount: stream.getAudioTracks().length,
+		trackLabel: track.label,
+		trackReadyState: track.readyState,
+		trackMuted: track.muted,
+		trackEnabled: track.enabled,
+		settingsDeviceId: settings.deviceId,
+		settingsSampleRate: settings.sampleRate,
+		settingsChannelCount: settings.channelCount,
+	};
+}
 
 function shouldUseMediaRecorder(): boolean {
 	if (typeof MediaRecorder === "undefined") return false;
@@ -144,6 +171,11 @@ export function useMicrophoneRecorder({
 
 				if (!isMissingDevice) throw error;
 
+				logDiagnostic("warn", "mic", "Saved device rejected; retrying default", {
+					requestedDeviceId: deviceId,
+					...describeError(error),
+				});
+
 				setStatus(
 					"Selected microphone is unavailable. Recording with the system default instead.",
 				);
@@ -159,13 +191,23 @@ export function useMicrophoneRecorder({
 	const onToggleMicRecording = useCallback(async (): Promise<void> => {
 		const active = sessionRef.current;
 		if (active) {
+			logDiagnostic("info", "mic", "Stop requested", {
+				sessionId: active.id,
+				...describeTrack(active.stream),
+			});
 			active.stop();
 			setStatus("Stopping microphone recording…");
 			return;
 		}
 
 		// Re-entrancy guard: see `isStartingRef`.
-		if (isStartingRef.current) return;
+		if (isStartingRef.current) {
+			// Worth a line of its own: this is the double-start that used to
+			// produce two recorders writing into one blob, i.e. every word
+			// transcribed twice.
+			logDiagnostic("warn", "mic", "Start ignored; another start is in flight");
+			return;
+		}
 		isStartingRef.current = true;
 
 		if (
@@ -179,14 +221,47 @@ export function useMicrophoneRecorder({
 
 		const sessionId = ++sessionSeqRef.current;
 		let stream: MediaStream | null = null;
+		const startedAt = Date.now();
 
 		try {
+			logDiagnostic("info", "mic", "Opening microphone", {
+				sessionId,
+				requestedDeviceId: selectedDeviceId.trim() || "(system default)",
+				usesMediaRecorder: shouldUseMediaRecorder(),
+			});
+
 			stream = await openMicrophoneStream(selectedDeviceId.trim());
+
+			logDiagnostic("info", "mic", "Microphone opened", {
+				sessionId,
+				openMs: Date.now() - startedAt,
+				...describeTrack(stream),
+			});
+
+			// A track that mutes or ends mid-recording is the signature of an
+			// interrupted capture, and nothing else in the pipeline reports it.
+			const audioTrack = stream.getAudioTracks()[0];
+			if (audioTrack) {
+				audioTrack.onmute = () =>
+					logDiagnostic("warn", "mic", "Capture track muted mid-session", {
+						sessionId,
+					});
+				audioTrack.onunmute = () =>
+					logDiagnostic("info", "mic", "Capture track unmuted", { sessionId });
+				audioTrack.onended = () =>
+					logDiagnostic("warn", "mic", "Capture track ended unexpectedly", {
+						sessionId,
+					});
+			}
 
 			// A stop requested while getUserMedia was still in flight, or a newer
 			// start that superseded this one: release the device instead of
 			// leaving a live stream holding the microphone open.
 			if (sessionSeqRef.current !== sessionId) {
+				logDiagnostic("warn", "mic", "Session superseded before start", {
+					sessionId,
+					currentSession: sessionSeqRef.current,
+				});
 				stopStream(stream);
 				return;
 			}
@@ -216,13 +291,29 @@ export function useMicrophoneRecorder({
 
 				setMicMimeType(mimeType);
 
+				let capturedBytes = 0;
+				let emptyChunks = 0;
+
 				recorder.ondataavailable = (event: BlobEvent) => {
 					// Bound to this session's own array, so a recorder that somehow
 					// outlives its session writes into a buffer nobody reads.
-					if (event.data.size > 0) chunks.push(event.data);
+					if (event.data.size > 0) {
+						capturedBytes += event.data.size;
+						chunks.push(event.data);
+						return;
+					}
+					// A run of these with a live track is what a silently
+					// interrupted capture looks like from here.
+					emptyChunks += 1;
 				};
 
-				recorder.onerror = () => {
+				recorder.onerror = (event: Event) => {
+					logDiagnostic("error", "mic", "MediaRecorder error", {
+						sessionId,
+						recorderState: recorder.state,
+						...describeError((event as unknown as { error?: unknown }).error),
+						...describeTrack(capturedStream),
+					});
 					recorder.ondataavailable = null;
 					stopStream(capturedStream);
 					if (sessionRef.current?.id === session.id) {
@@ -234,16 +325,35 @@ export function useMicrophoneRecorder({
 
 				recorder.onstop = () => {
 					recorder.ondataavailable = null;
-					stopStream(capturedStream);
-					finishSession(
-						session,
-						new Blob(chunks, { type: mimeType }),
-						mimeType,
+					const blob = new Blob(chunks, { type: mimeType });
+
+					logDiagnostic(
+						blob.size > 0 ? "info" : "error",
+						"mic",
+						blob.size > 0 ? "Capture finished" : "Capture produced no audio",
+						{
+							sessionId,
+							elapsedMs: Date.now() - startedAt,
+							blobBytes: blob.size,
+							chunkCount: chunks.length,
+							capturedBytes,
+							emptyChunks,
+							mimeType,
+							...describeTrack(capturedStream),
+						},
 					);
+
+					stopStream(capturedStream);
+					finishSession(session, blob, mimeType);
 				};
 
 				sessionRef.current = session;
 				recorder.start(250);
+				logDiagnostic("info", "mic", "Recording started", {
+					sessionId,
+					mimeType,
+					recorderState: recorder.state,
+				});
 				setIsRecording(true);
 				setStatus("Recording from microphone… click Stop Recording when done.");
 				return;
@@ -271,8 +381,17 @@ export function useMicrophoneRecorder({
 			// `onaudioprocess`, which yields a zero-length wav and the misleading
 			// "recording is empty" message.
 			if (audioContext.state === "suspended") {
+				logDiagnostic("warn", "mic", "AudioContext started suspended; resuming", {
+					sessionId,
+				});
 				await audioContext.resume();
 			}
+
+			logDiagnostic("info", "mic", "AudioContext ready", {
+				sessionId,
+				audioContextState: audioContext.state,
+				sampleRate: audioContext.sampleRate,
+			});
 
 			// `resume` is another await, so re-check for the same reason as above.
 			if (sessionSeqRef.current !== sessionId) {
@@ -313,17 +432,34 @@ export function useMicrophoneRecorder({
 					source.disconnect();
 					silentGain.disconnect();
 
+					// Read before closing: the whole point of logging this is to
+					// show whether the context was still running when the capture
+					// ended, and `close()` would overwrite that with "closed".
+					const contextStateAtStop = audioContext.state;
+
 					void audioContext.close();
 					if (audioContextRef.current === audioContext) {
 						audioContextRef.current = null;
 					}
 
-					stopStream(capturedStream);
-					finishSession(
-						session,
-						encodeWav(wavChunks, sampleRate),
-						"audio/wav",
+					const wav = encodeWav(wavChunks, sampleRate);
+					logDiagnostic(
+						wav.size > 0 ? "info" : "error",
+						"mic",
+						wav.size > 0 ? "Capture finished" : "Capture produced no audio",
+						{
+							sessionId,
+							elapsedMs: Date.now() - startedAt,
+							blobBytes: wav.size,
+							bufferCount: wavChunks.length,
+							audioContextState: contextStateAtStop,
+							sampleRate,
+							...describeTrack(capturedStream),
+						},
 					);
+
+					stopStream(capturedStream);
+					finishSession(session, wav, "audio/wav");
 				},
 			};
 
@@ -334,6 +470,12 @@ export function useMicrophoneRecorder({
 				"Recording from microphone (AudioContext fallback)… click Stop Recording when done.",
 			);
 		} catch (error) {
+			logDiagnostic("error", "mic", "Microphone access failed", {
+				sessionId,
+				elapsedMs: Date.now() - startedAt,
+				requestedDeviceId: selectedDeviceId.trim() || "(system default)",
+				...describeError(error),
+			});
 			if (stream) stopStream(stream);
 			if (sessionRef.current?.id === sessionId) sessionRef.current = null;
 			setIsRecording(false);
@@ -348,6 +490,26 @@ export function useMicrophoneRecorder({
 		setStatus,
 		stopStream,
 	]);
+
+	useEffect(() => {
+		if (typeof document === "undefined") return;
+
+		const onVisibilityChange = (): void => {
+			const active = sessionRef.current;
+			if (!active) return;
+
+			// Only interesting during a capture: this is the signal WebKit acts on
+			// when it decides to interrupt the microphone.
+			logDiagnostic("warn", "mic", "Page visibility changed while recording", {
+				sessionId: active.id,
+				...describeTrack(active.stream),
+			});
+		};
+
+		document.addEventListener("visibilitychange", onVisibilityChange);
+		return () =>
+			document.removeEventListener("visibilitychange", onVisibilityChange);
+	}, []);
 
 	useEffect(() => {
 		return () => {

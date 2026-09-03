@@ -312,18 +312,47 @@ mod tests {
         assert_eq!(pick_legacy_settings(&[]), None);
     }
 
+    /// The fixture has to mirror whatever `platform_app_support_root` actually
+    /// reads, which differs by platform: `XDG_DATA_HOME` on Linux, but
+    /// `$HOME/Library/Application Support` on macOS.
+    ///
+    /// Pointing only `XDG_DATA_HOME` at the temp root left macOS scanning the
+    /// developer's real Application Support directory, so the test asserted
+    /// against whichever Loudio bundle ids happened to exist on that machine —
+    /// green on CI, and failing on any Mac that had ever run the app.
     #[test]
     fn finds_a_previous_bundle_ids_settings_under_the_data_root() {
         let root = std::env::temp_dir().join(format!("loudio-root-{}", std::process::id()));
-        let legacy = root.join("com.loudio.app");
-        let current = root.join("io.github.sudsarkar13.loudio");
+        let support_root = if cfg!(target_os = "macos") {
+            root.join("Library").join("Application Support")
+        } else {
+            root.clone()
+        };
+
+        let legacy = support_root.join("com.loudio.app");
+        let current = support_root.join("io.github.sudsarkar13.loudio");
         fs::create_dir_all(&legacy).unwrap();
         fs::create_dir_all(&current).unwrap();
         write(&legacy, "settings.json", &valid_settings("en"));
 
-        std::env::set_var("XDG_DATA_HOME", &root);
+        // Both are set regardless of platform so the redirect holds whichever
+        // branch `platform_app_support_root` takes, and both are restored: these
+        // are process-wide, and the rest of the suite runs in parallel.
+        let previous_home = std::env::var_os("HOME");
+        let previous_xdg = std::env::var_os("XDG_DATA_HOME");
+        std::env::set_var("HOME", &root);
+        std::env::set_var("XDG_DATA_HOME", &support_root);
+
         let found = legacy_settings_candidates(&current);
-        std::env::remove_var("XDG_DATA_HOME");
+
+        match previous_home {
+            Some(value) => std::env::set_var("HOME", value),
+            None => std::env::remove_var("HOME"),
+        }
+        match previous_xdg {
+            Some(value) => std::env::set_var("XDG_DATA_HOME", value),
+            None => std::env::remove_var("XDG_DATA_HOME"),
+        }
 
         assert_eq!(found, vec![legacy.join("settings.json")]);
         fs::remove_dir_all(&root).ok();
