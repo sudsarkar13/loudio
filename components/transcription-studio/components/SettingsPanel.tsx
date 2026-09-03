@@ -55,6 +55,7 @@ export function SettingsPanel({
 	onRefreshMicrophoneDevices,
 }: SettingsPanelProps) {
 	const enginePathPlaceholder = getEnginePathPlaceholder();
+	const isTranslating = settings.task === "translate";
 
 	return (
 		<aside className="card studio-settings">
@@ -119,7 +120,15 @@ export function SettingsPanel({
 				</div>
 
 				<div>
-					<div className="label">Language</div>
+					{/*
+					  * This selector always names the *spoken* language, in both
+					  * tasks — Whisper has no notion of an output language. The
+					  * label says so under Translate, where "Language" alone
+					  * reads like a translation target.
+					  */}
+					<div className="label">
+						{isTranslating ? "Spoken language" : "Language"}
+					</div>
 					<select
 						className="select"
 						value={settings.language}
@@ -148,9 +157,14 @@ export function SettingsPanel({
 								task: event.target.value as AppSettings["task"],
 							}))
 						}>
-						<option value="transcribe">Transcribe</option>
-						<option value="translate">Translate</option>
+						<option value="transcribe">Transcribe (keep spoken language)</option>
+						<option value="translate">Translate to English</option>
 					</select>
+					<div className="helper">
+						{isTranslating ?
+							"Whisper only translates into English; it has no other translation direction. Choose Transcribe to keep the spoken language."
+						:	"Keeps the language you speak. Auto Detect identifies it per recording."}
+					</div>
 				</div>
 			</section>
 

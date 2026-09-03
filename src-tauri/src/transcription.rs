@@ -242,11 +242,19 @@ pub async fn transcribe_with_whisper_cpp(
         workspace.output_root.to_string_lossy().to_string(),
     ];
 
-    if request.settings.language != "auto" {
-        args.push("-l".into());
-        args.push(request.settings.language.clone());
-    }
+    // Passed unconditionally, including the literal "auto".
+    //
+    // whisper.cpp documents `-l` as defaulting to **en**, not to auto-detect, so
+    // omitting the flag does not mean "work it out" — it asserts the audio is
+    // English. The model then decodes Hindi (or any other language) *as* English
+    // and emits an English translation, which is why Transcribe silently behaved
+    // like Translate for every non-English speaker. "auto" is a value the flag
+    // accepts, so the fix is to stop treating it as "no flag".
+    args.push("-l".into());
+    args.push(request.settings.language.clone());
 
+    // Whisper's translate task only ever targets English; the model has no
+    // other translation direction. Transcribe keeps the spoken language.
     if request.settings.task == "translate" {
         args.push("-tr".into());
     }
@@ -271,7 +279,7 @@ pub async fn transcribe_with_whisper_cpp(
     }
 
     let started = Instant::now();
-    run_command(&whisper_cli, &args).await?;
+    let (_stdout, stderr) = run_command(&whisper_cli, &args).await?;
     let elapsed = started.elapsed().as_millis();
 
     let txt_path = workspace.output_root.with_extension("txt");
@@ -288,14 +296,35 @@ pub async fn transcribe_with_whisper_cpp(
 
     Ok(TranscriptionResponse {
         text,
+        // On auto, report what the engine actually settled on rather than
+        // nothing — that is the only way a user can tell a mis-detection apart
+        // from a bad transcript.
         language_detected: if request.settings.language == "auto" {
-            None
+            parse_detected_language(&stderr)
         } else {
             Some(request.settings.language.clone())
         },
         elapsed_ms: elapsed,
         model_used: format!("whisper.cpp:{model}"),
     })
+}
+
+/// Pulls the language code out of whisper.cpp's auto-detect line, which looks
+/// like `whisper_full_with_state: auto-detected language: hi (p = 0.96)`.
+///
+/// Returns `None` when the line is absent, so a change in whisper.cpp's output
+/// degrades to "unknown" rather than to a wrong answer.
+fn parse_detected_language(output: &str) -> Option<String> {
+    let marker = "auto-detected language: ";
+    let start = output.find(marker)? + marker.len();
+    let rest = &output[start..];
+
+    let code: String = rest
+        .chars()
+        .take_while(|c| c.is_ascii_alphanumeric() || *c == '-')
+        .collect();
+
+    (!code.is_empty()).then_some(code)
 }
 
 pub async fn transcribe_with_python(
@@ -338,6 +367,11 @@ pub async fn transcribe_with_python(
         "True".into(),
     ];
 
+    // Deliberately *not* mirroring the whisper.cpp branch above, which has to
+    // pass "auto" explicitly. openai-whisper's `--language` defaults to None,
+    // which already means auto-detect, and it rejects "auto" as a language name.
+    // The two engines disagree on how auto is expressed; only their behaviour
+    // has to match.
     if request.settings.language != "auto" {
         args.push("--language".into());
         args.push(request.settings.language.clone());
@@ -484,4 +518,29 @@ pub async fn transcribe_with_python(
         elapsed_ms: elapsed,
         model_used: format!("openai-whisper:{model}"),
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::parse_detected_language;
+
+    #[test]
+    fn reads_the_code_from_whispers_auto_detect_line() {
+        let output = "whisper_full_with_state: auto-detected language: hi (p = 0.962753)\n";
+        assert_eq!(parse_detected_language(output), Some("hi".to_string()));
+    }
+
+    #[test]
+    fn handles_hyphenated_codes() {
+        let output = "auto-detected language: zh-tw (p = 0.51)";
+        assert_eq!(parse_detected_language(output), Some("zh-tw".to_string()));
+    }
+
+    /// A missing or reworded line must not become a confident wrong answer.
+    #[test]
+    fn returns_none_when_the_line_is_absent() {
+        assert_eq!(parse_detected_language(""), None);
+        assert_eq!(parse_detected_language("loading model..."), None);
+        assert_eq!(parse_detected_language("auto-detected language:  "), None);
+    }
 }
