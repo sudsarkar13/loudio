@@ -1,0 +1,8 @@
+{
+	"mcpServers": {
+		"loudio": {
+			"command": "node",
+			"args": ["scripts/agent-bridge-mcp.mjs"]
+		}
+	}
+}

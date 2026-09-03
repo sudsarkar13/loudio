@@ -18,6 +18,7 @@ import { useRuntimeBootstrap } from "@/components/transcription-studio/hooks/use
 import { useSystemReadinessWizard } from "@/components/transcription-studio/hooks/useSystemReadinessWizard";
 import { useTranscriptWorkflow } from "@/components/transcription-studio/hooks/useTranscriptWorkflow";
 import { useDesktopMenuBindings } from "@/components/transcription-studio/hooks/useDesktopMenuBindings";
+import { useAgentBridge } from "@/components/transcription-studio/hooks/useAgentBridge";
 import { useMicrophoneDevices } from "@/components/transcription-studio/hooks/useMicrophoneDevices";
 import { CompactShell } from "@/components/transcription-studio/components/CompactShell";
 import { GeneralTopStrip } from "@/components/transcription-studio/components/GeneralTopStrip";
@@ -231,6 +232,47 @@ export function TranscriptionStudio() {
 		settings,
 		isCompactMode,
 	});
+
+	// Development-only: lets an AI agent observe and drive the running app. The
+	// hook is inert in a packaged build.
+	useAgentBridge(
+		{
+			windowMode: isCompactMode ? "compact" : "general",
+			isRecording,
+			isTranscribing: isTranscribing || isMicTranscribing,
+			isBootstrapping,
+			status,
+			transcript: transcriptDraft,
+			audioPath,
+			activeView: activeGeneralView,
+			settings,
+			microphoneCount: microphoneDevices.length,
+			hasMicrophonePermission,
+		},
+		{
+			startRecording: () => {
+				if (!isRecording) void onToggleMicRecording();
+			},
+			stopRecording: () => {
+				if (isRecording) void onToggleMicRecording();
+			},
+			toggleCompactMode: () => {
+				void onToggleCompactMode();
+			},
+			setCompactMode: (compact: boolean) => {
+				if (compact !== isCompactMode) void onToggleCompactMode();
+			},
+			transcribeFile: (path?: string) => {
+				if (path) setAudioPath(path);
+				void runTranscription(path ?? audioPath, settings);
+			},
+			clearTranscript: clearTranscriptView,
+			updateSettings: (patch) => {
+				setSettings((prev) => ({ ...prev, ...patch }));
+			},
+			selectView: setActiveGeneralView,
+		},
+	);
 
 	const activeProfile = useMemo(
 		() =>

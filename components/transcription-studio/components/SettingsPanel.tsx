@@ -70,6 +70,14 @@ export function SettingsPanel({
 			</div>
 
 			<section className="settings-grid compact-grid">
+				{/*
+				  * Grouped rather than presented as one flat column of selects.
+				  * Seven identical dropdowns stacked together give no clue which
+				  * ones affect accuracy, which affect the recording, and which
+				  * affect the output — the headings carry that structure.
+				  */}
+				<p className="settings-group-label">Engine</p>
+
 				<div>
 					<div className="label">Runtime</div>
 					<select
@@ -88,6 +96,8 @@ export function SettingsPanel({
 						))}
 					</select>
 				</div>
+
+				<p className="settings-group-label">Input</p>
 
 				<div>
 					<MicrophoneSelector
@@ -123,6 +133,8 @@ export function SettingsPanel({
 						))}
 					</select>
 				</div>
+
+				<p className="settings-group-label">Output</p>
 
 				<div>
 					{/*

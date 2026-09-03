@@ -396,6 +396,19 @@ pub fn set_window_menu_visible(window: tauri::WebviewWindow, visible: bool) -> R
     result.map_err(|error| error.to_string())
 }
 
+/// Receives the webview's state snapshot for the agent bridge to serve.
+///
+/// The bridge cannot read UI state itself, so the frontend pushes it here
+/// whenever something meaningful changes. Development builds only.
+#[cfg(debug_assertions)]
+#[tauri::command]
+pub fn agent_bridge_publish_state(
+    state: tauri::State<'_, std::sync::Arc<crate::agent_bridge::BridgeState>>,
+    snapshot: serde_json::Value,
+) {
+    state.publish(snapshot);
+}
+
 /// Suggests `heard -> intended` corrections from an edited transcript.
 ///
 /// Suggestions only. Nothing is learned until the user confirms, so a typo or

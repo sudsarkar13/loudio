@@ -3,6 +3,7 @@
 #[cfg(target_os = "linux")]
 use tauri::Manager;
 
+mod agent_bridge;
 mod binaries;
 mod bootstrap;
 mod commands;
@@ -97,6 +98,30 @@ fn main() {
                 allow_linux_microphone_requests(&webview_window)?;
             }
 
+            // Development builds only — the module itself is compiled out of
+            // release, so this block cannot run in a shipped app.
+            #[cfg(debug_assertions)]
+            {
+                use tauri::Manager;
+
+                app.manage(std::sync::Arc::new(
+                    crate::agent_bridge::BridgeState::default(),
+                ));
+
+                let handle = app.handle().clone();
+                tauri::async_runtime::spawn(async move {
+                    match crate::agent_bridge::start(handle).await {
+                        Ok(handshake) => eprintln!(
+                            "Agent bridge listening on 127.0.0.1:{} (token in agent-bridge.json)",
+                            handshake.port
+                        ),
+                        Err(error) => {
+                            eprintln!("Agent bridge failed to start: {error:#}")
+                        }
+                    }
+                });
+            }
+
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
@@ -127,6 +152,8 @@ fn main() {
             diagnostics::log_diagnostic_event,
             diagnostics::read_diagnostics_log,
             diagnostics::reveal_diagnostics_logs,
+            #[cfg(debug_assertions)]
+            commands::agent_bridge_publish_state,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

@@ -111,25 +111,51 @@ export function WorkspaceActivityView({
 			</div>
 
 			{isBootstrapping ?
-				<div
-					className="runtime-progress"
-					aria-live="polite"
-					aria-label="Runtime bootstrap progress">
+				<div className="runtime-progress">
 					<div className="runtime-progress-head">
-						<span>Runtime preparation</span>
-						<span>{runtimeBootstrapPercent}%</span>
+						<span className="runtime-progress-title">
+							{/* A spinner alongside the bar: at 0% the bar alone is
+							    indistinguishable from a stalled one. */}
+							<span className="runtime-spinner" aria-hidden="true" />
+							Preparing runtime
+						</span>
+						<span className="runtime-progress-value">
+							{runtimeBootstrapPercent}%
+						</span>
 					</div>
-					<div className="runtime-progress-track">
+					<div
+						className="runtime-progress-track"
+						role="progressbar"
+						aria-valuemin={0}
+						aria-valuemax={100}
+						aria-valuenow={runtimeBootstrapPercent}
+						aria-valuetext={runtimeBootstrapMessage}
+						aria-label="Runtime preparation">
 						<div
-							className="runtime-progress-fill"
-							style={{ width: `${runtimeBootstrapPercent}%` }}
+							className={
+								runtimeBootstrapPercent > 0 ?
+									"runtime-progress-fill"
+								:	"runtime-progress-fill runtime-progress-fill-idle"
+							}
+							style={{ width: `${Math.max(runtimeBootstrapPercent, 2)}%` }}
 						/>
 					</div>
-					<div className="helper">{runtimeBootstrapMessage}</div>
 				</div>
 			:	null}
 
-			<div className="status status-modern">{status}</div>
+			{/* While bootstrapping, the status line already carries the step
+			    message — the progress panel showed the identical string directly
+			    above it, so the same sentence appeared twice, stacked. The bar now
+			    exposes it to assistive tech via aria-valuetext instead. */}
+			<div
+				className={
+					isBootstrapping ? "status status-modern status-busy" : (
+						"status status-modern"
+					)
+				}
+				aria-live="polite">
+				{status}
+			</div>
 
 			<LearnTermPrompt
 				engineTranscript={engineTranscript}
