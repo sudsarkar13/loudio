@@ -56,6 +56,11 @@ export function SettingsPanel({
 }: SettingsPanelProps) {
 	const enginePathPlaceholder = getEnginePathPlaceholder();
 	const isTranslating = settings.task === "translate";
+	// "auto" and English are produced by Whisper itself, so neither downloads a
+	// translation model.
+	const translateTarget = (settings.translateTargetLanguage ?? "auto").trim();
+	const needsTranslationModel =
+		translateTarget !== "auto" && translateTarget !== "en" && translateTarget !== "";
 
 	return (
 		<aside className="card studio-settings">
@@ -194,6 +199,36 @@ export function SettingsPanel({
 									</option>
 								))}
 						</select>
+					</div>
+				:	null}
+
+				{/*
+				  * Shown only once a non-English target is chosen, because that
+				  * is the only configuration that downloads a model at all.
+				  * Offering the choice earlier would imply a cost the default
+				  * path never pays.
+				  */}
+				{isTranslating && needsTranslationModel ?
+					<div>
+						<div className="label">Translation model</div>
+						<select
+							className="select"
+							value={settings.translationModelSize}
+							onChange={(event: ChangeEvent<HTMLSelectElement>) =>
+								setSettings((prev: AppSettings) => ({
+									...prev,
+									translationModelSize: event.target
+										.value as AppSettings["translationModelSize"],
+								}))
+							}>
+							<option value="small">Small — 2.5 GB, faster</option>
+							<option value="large">Large — 5.5 GB, more accurate</option>
+						</select>
+						<div className="helper">
+							{settings.translationModelSize === "large" ?
+								"Downloaded once, on first use. Better on long or idiomatic passages, but noticeably slower per sentence on CPU."
+							:	"Downloaded once, on first use. Covers all 200 languages and runs comfortably on a laptop CPU."}
+						</div>
 					</div>
 				:	null}
 			</section>

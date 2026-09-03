@@ -45,10 +45,21 @@ pub struct AppSettings {
     /// loadable — without it every existing install would fail to parse.
     #[serde(default = "default_translate_target")]
     pub translate_target_language: String,
+    /// Which NLLB checkpoint translation uses: "small" or "large".
+    ///
+    /// Opt-in rather than automatic: the large model is more accurate but costs
+    /// roughly twice the disk and is slower per sentence, and that trade is the
+    /// user's to make.
+    #[serde(default = "default_translation_model_size")]
+    pub translation_model_size: String,
 }
 
 fn default_translate_target() -> String {
     "auto".to_string()
+}
+
+fn default_translation_model_size() -> String {
+    "small".to_string()
 }
 
 /// One confirmed correction. Stored rather than inferred, so a typo in an

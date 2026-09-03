@@ -16,14 +16,50 @@ use crate::{
     process::{emit_transcription_progress, run_command},
 };
 
-/// The checkpoint. Distilled 600M rather than the 1.3B/3.3B variants: it is the
-/// largest that stays comfortable on a laptop CPU, which is the floor Loudio
-/// targets.
-const NLLB_MODEL_ID: &str = "facebook/nllb-200-distilled-600M";
+/// A translation checkpoint the user can choose between.
+///
+/// Both are distilled NLLB-200 and both cover all 200 languages; they trade
+/// accuracy against disk and CPU. The 3.3B variant is deliberately not offered —
+/// at ~17 GB of weights it is not a laptop-sized download.
+pub struct TranslationModel {
+    pub id: &'static str,
+    /// Disk to require before downloading. Derived from the parameter count at
+    /// fp32 (600M x 4 bytes = 2.4 GB, which matches the measured on-disk size),
+    /// rounded up for the tokenizer and the cache's in-flight copies.
+    pub download_bytes: u64,
+    /// Shown to the user so the cost of switching is visible before the click.
+    pub approx_download: &'static str,
+}
 
-/// Disk the checkpoint needs. The weights are ~2.5 GB; the rest is headroom for
-/// the tokenizer and the cache's in-flight copies.
-const NLLB_DOWNLOAD_BYTES: u64 = 3 * 1024 * 1024 * 1024;
+const GIB: u64 = 1024 * 1024 * 1024;
+
+/// ~2.5 GB of weights. The default: it runs comfortably on a laptop CPU, which
+/// is the floor Loudio targets.
+pub const NLLB_SMALL: TranslationModel = TranslationModel {
+    id: "facebook/nllb-200-distilled-600M",
+    download_bytes: 3 * GIB,
+    approx_download: "2.5 GB",
+};
+
+/// ~5.5 GB of weights, and noticeably slower per sentence on CPU. Better on long
+/// or idiomatic passages.
+pub const NLLB_LARGE: TranslationModel = TranslationModel {
+    id: "facebook/nllb-200-distilled-1.3B",
+    download_bytes: 7 * GIB,
+    approx_download: "5.5 GB",
+};
+
+/// Resolves the stored preference to a checkpoint.
+///
+/// Anything unrecognised falls back to the small model rather than erroring: a
+/// settings file from a newer build should not make translation refuse to run,
+/// and the cheaper model is the safer default to land on.
+pub fn resolve_model(size: &str) -> TranslationModel {
+    match size.trim().to_ascii_lowercase().as_str() {
+        "large" => NLLB_LARGE,
+        _ => NLLB_SMALL,
+    }
+}
 
 /// Maps Loudio's ISO-639-1 codes onto the FLORES-200 codes NLLB expects.
 ///
@@ -256,6 +292,7 @@ pub async fn translate_text(
     text: &str,
     source_iso: &str,
     target_iso: &str,
+    model_size: &str,
 ) -> Result<String> {
     if text.trim().is_empty() {
         return Ok(text.to_string());
@@ -275,10 +312,12 @@ pub async fn translate_text(
     // The checkpoint plus the Hugging Face cache's working copies. Checked
     // before anything is fetched, because `from_pretrained` streams straight to
     // disk with no size ceiling of its own.
+    let model = resolve_model(model_size);
+
     crate::disk::ensure_room_for(
         &runtime_dir(app)?,
-        NLLB_DOWNLOAD_BYTES,
-        "the NLLB-200 translation model",
+        model.download_bytes,
+        &format!("the NLLB-200 translation model ({})", model.approx_download),
     )?;
 
     let python = ensure_python_whisper_runtime(app)
@@ -300,7 +339,7 @@ pub async fn translate_text(
     );
 
     let job = serde_json::json!({
-        "model_id": NLLB_MODEL_ID,
+        "model_id": model.id,
         "source": source,
         "target": target,
         "text": text,
@@ -365,7 +404,7 @@ async fn run_python_with_stdin(python: &str, script: &PathBuf, job: &str) -> Res
 
 #[cfg(test)]
 mod tests {
-    use super::{needs_neural_translation, to_flores_code};
+    use super::{needs_neural_translation, resolve_model, to_flores_code, NLLB_LARGE, NLLB_SMALL};
 
     /// NLLB needs a script as well as a language, so the mapping cannot be a
     /// passthrough of Loudio's ISO codes.
@@ -408,5 +447,27 @@ mod tests {
     fn a_non_english_target_triggers_translation() {
         assert!(needs_neural_translation("translate", "hi"));
         assert!(needs_neural_translation("translate", "fr"));
+    }
+
+    #[test]
+    fn resolves_the_requested_checkpoint() {
+        assert_eq!(resolve_model("small").id, NLLB_SMALL.id);
+        assert_eq!(resolve_model("large").id, NLLB_LARGE.id);
+        assert_eq!(resolve_model("LARGE").id, NLLB_LARGE.id);
+    }
+
+    /// A settings file written by a newer build must not make translation refuse
+    /// to run; falling back to the cheaper model is the safe direction.
+    #[test]
+    fn an_unknown_size_falls_back_to_the_small_model() {
+        assert_eq!(resolve_model("").id, NLLB_SMALL.id);
+        assert_eq!(resolve_model("enormous").id, NLLB_SMALL.id);
+    }
+
+    /// The larger checkpoint must reserve more disk, or the guard would wave
+    /// through a download it cannot fit.
+    #[test]
+    fn the_large_model_requires_more_disk() {
+        assert!(NLLB_LARGE.download_bytes > NLLB_SMALL.download_bytes);
     }
 }

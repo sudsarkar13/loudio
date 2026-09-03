@@ -159,7 +159,15 @@ async fn apply_neural_translation(
         return value;
     };
 
-    match crate::translation::translate_text(app, &value.text, &source, target).await {
+    match crate::translation::translate_text(
+        app,
+        &value.text,
+        &source,
+        target,
+        &request.settings.translation_model_size,
+    )
+    .await
+    {
         Ok(translated) => {
             crate::diagnostics::record(
                 app,

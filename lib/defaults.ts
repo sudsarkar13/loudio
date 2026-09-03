@@ -43,6 +43,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
 	customVocabulary: "",
 	learnedTerms: [],
 	translateTargetLanguage: "auto",
+	translationModelSize: "small",
 };
 
 export const LANGUAGES: Array<{ value: string; label: string }> = [

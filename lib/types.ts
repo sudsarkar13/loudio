@@ -28,6 +28,13 @@ export interface AppSettings {
 	 * Anything else runs the transcript through NLLB-200 afterwards.
 	 */
 	translateTargetLanguage: string;
+	/**
+	 * Which NLLB checkpoint translation uses.
+	 *
+	 * "small" (~2.5 GB) is the default; "large" (~5.5 GB) is more accurate but
+	 * costs roughly twice the disk and is slower per sentence.
+	 */
+	translationModelSize: "small" | "large";
 }
 
 /** A confirmed `heard -> intended` correction. */
