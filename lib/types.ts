@@ -21,6 +21,13 @@ export interface AppSettings {
 	customVocabulary: string;
 	/** Confirmed corrections replayed after decoding. */
 	learnedTerms: LearnedTerm[];
+	/**
+	 * Language the translate task outputs, as ISO-639-1.
+	 *
+	 * "auto" means English — the only direction Whisper itself can produce.
+	 * Anything else runs the transcript through NLLB-200 afterwards.
+	 */
+	translateTargetLanguage: string;
 }
 
 /** A confirmed `heard -> intended` correction. */

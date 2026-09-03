@@ -162,10 +162,40 @@ export function SettingsPanel({
 					</select>
 					<div className="helper">
 						{isTranslating ?
-							"Whisper only translates into English; it has no other translation direction. Choose Transcribe to keep the spoken language."
+							"Auto keeps Whisper's own output, which is always English. Any other target adds a second pass with a local NLLB-200 model, downloaded once on first use."
 						:	"Keeps the language you speak. Auto Detect identifies it per recording."}
 					</div>
 				</div>
+
+				{isTranslating ?
+					<div>
+						<div className="label">Translate into</div>
+						<select
+							className="select"
+							value={settings.translateTargetLanguage}
+							onChange={(event: ChangeEvent<HTMLSelectElement>) =>
+								setSettings((prev: AppSettings) => ({
+									...prev,
+									translateTargetLanguage: event.target.value,
+								}))
+							}>
+							{/*
+							  * "Auto" is English rather than a detected language:
+							  * a translation target cannot be inferred from the
+							  * audio, and English is the one direction Whisper
+							  * can produce without a second model.
+							  */}
+							<option value="auto">Auto (English)</option>
+							{languages
+								.filter((language: LanguageOption) => language.value !== "auto")
+								.map((language: LanguageOption) => (
+									<option key={language.value} value={language.value}>
+										{language.label}
+									</option>
+								))}
+						</select>
+					</div>
+				:	null}
 			</section>
 
 			<section className="stack compact-stack">

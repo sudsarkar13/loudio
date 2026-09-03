@@ -37,6 +37,18 @@ pub struct AppSettings {
     /// Learned `heard -> intended` corrections, applied after decoding.
     #[serde(default)]
     pub learned_terms: Vec<LearnedTerm>,
+    /// Language the translate task should output, as ISO-639-1.
+    ///
+    /// "auto" (the default) means English, which Whisper produces on its own.
+    /// Any other value routes the transcript through NLLB-200 afterwards.
+    /// `serde(default)` keeps settings files written before this field existed
+    /// loadable — without it every existing install would fail to parse.
+    #[serde(default = "default_translate_target")]
+    pub translate_target_language: String,
+}
+
+fn default_translate_target() -> String {
+    "auto".to_string()
 }
 
 /// One confirmed correction. Stored rather than inferred, so a typo in an

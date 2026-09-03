@@ -42,6 +42,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
 	micDeviceId: "",
 	customVocabulary: "",
 	learnedTerms: [],
+	translateTargetLanguage: "auto",
 };
 
 export const LANGUAGES: Array<{ value: string; label: string }> = [

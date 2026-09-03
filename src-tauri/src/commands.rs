@@ -40,9 +40,23 @@ pub fn save_settings(app: tauri::AppHandle, settings: AppSettings) -> Result<(),
 #[tauri::command]
 pub async fn transcribe_audio(
     app: tauri::AppHandle,
-    request: TranscriptionRequest,
+    mut request: TranscriptionRequest,
 ) -> Result<TranscriptionResponse, String> {
     emit_transcription_progress(&app, None, "Transcription started…", false, false);
+
+    // Whisper's translate task only ever outputs English. For any other target
+    // the engine therefore runs as a *transcriber* — capturing the spoken
+    // language faithfully — and NLLB changes the language afterwards. Running
+    // Whisper's own translation first and then translating again would put two
+    // lossy hops in series.
+    let translate_target = request.settings.translate_target_language.clone();
+    let needs_neural_translation = crate::translation::needs_neural_translation(
+        &request.settings.task,
+        &translate_target,
+    );
+    if needs_neural_translation {
+        request.settings.task = "transcribe".to_string();
+    }
 
     let profile = runtime_profiles()
         .into_iter()
@@ -56,6 +70,12 @@ pub async fn transcribe_audio(
 
     match preferred {
         Ok(value) => {
+            let value = if needs_neural_translation {
+                apply_neural_translation(&app, value, &request, &translate_target).await
+            } else {
+                value
+            };
+
             emit_transcription_progress(
                 &app,
                 Some(value.text.clone()),
@@ -95,6 +115,89 @@ pub async fn transcribe_audio(
                     Err(message)
                 }
             }
+        }
+    }
+}
+
+/// Runs the NLLB step over a finished transcript.
+///
+/// Returns the transcript **unchanged** if translation fails, rather than
+/// failing the whole request: the speech has already been captured, and losing a
+/// long dictation because a translation model could not load would be a worse
+/// outcome than delivering it untranslated. The failure is not swallowed — it is
+/// emitted as an error-level progress event and written to the diagnostic log,
+/// so it never looks like translation silently did nothing.
+async fn apply_neural_translation(
+    app: &tauri::AppHandle,
+    value: TranscriptionResponse,
+    request: &TranscriptionRequest,
+    target: &str,
+) -> TranscriptionResponse {
+    // An explicit language setting is authoritative; otherwise use whatever the
+    // engine detected. NLLB has to be told the source language — it does not
+    // detect one — so with neither we cannot proceed.
+    let source = if request.settings.language != "auto" {
+        Some(request.settings.language.clone())
+    } else {
+        value.language_detected.clone()
+    };
+
+    let Some(source) = source else {
+        let message = "Could not determine the spoken language, so the transcript was not \
+                       translated. Select the spoken language instead of Auto Detect and \
+                       try again.";
+        emit_transcription_progress(app, None, message, false, true);
+        crate::diagnostics::record(
+            app,
+            &crate::diagnostics::DiagnosticEvent {
+                level: "error".into(),
+                scope: "translate".into(),
+                message: "No source language available for translation".into(),
+                fields: serde_json::json!({ "target": target }),
+            },
+        );
+        return value;
+    };
+
+    match crate::translation::translate_text(app, &value.text, &source, target).await {
+        Ok(translated) => {
+            crate::diagnostics::record(
+                app,
+                &crate::diagnostics::DiagnosticEvent {
+                    level: "info".into(),
+                    scope: "translate".into(),
+                    message: "Translated transcript".into(),
+                    fields: serde_json::json!({
+                        "source": source,
+                        "target": target,
+                        "inputChars": value.text.len(),
+                        "outputChars": translated.len(),
+                    }),
+                },
+            );
+            TranscriptionResponse {
+                text: translated,
+                model_used: format!("{} + nllb-200:{source}->{target}", value.model_used),
+                ..value
+            }
+        }
+        Err(error) => {
+            let message = format!("Transcript kept, but translation failed: {error:#}");
+            emit_transcription_progress(app, None, message.clone(), false, true);
+            crate::diagnostics::record(
+                app,
+                &crate::diagnostics::DiagnosticEvent {
+                    level: "error".into(),
+                    scope: "translate".into(),
+                    message: "Translation failed".into(),
+                    fields: serde_json::json!({
+                        "source": source,
+                        "target": target,
+                        "detail": format!("{error:#}"),
+                    }),
+                },
+            );
+            value
         }
     }
 }

@@ -15,6 +15,7 @@ mod process;
 mod recordings;
 mod system_readiness;
 mod transcription;
+mod translation;
 mod versions;
 mod vocabulary;
 
