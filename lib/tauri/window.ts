@@ -14,7 +14,12 @@ const COMPACT_WINDOW_HEIGHT = 200;
 const GENERAL_WINDOW_WIDTH = 1000;
 const GENERAL_WINDOW_HEIGHT = 550;
 const COMPACT_WINDOW_MARGIN_BOTTOM = 18;
-const COMPACT_WINDOW_POSITION_KEY = "loudio:compact:window-position";
+// v2: v1 stored *physical* pixels but restored them as *logical* ones, so on
+// any HiDPI display every save/restore round trip multiplied the coordinates by
+// the scale factor and eventually parked the window off-screen. The key is
+// versioned so a v1 value is dropped rather than re-applied at the wrong scale.
+const COMPACT_WINDOW_POSITION_KEY = "loudio:compact:window-position:v2";
+const LEGACY_COMPACT_WINDOW_POSITION_KEY = "loudio:compact:window-position";
 
 function getDefaultCompactWindowPosition(
 	width: number,
@@ -72,16 +77,54 @@ function getAnchoredCompactWindowPosition(
 	return { x, y };
 }
 
+/**
+ * Keeps a position far enough inside the screen that the window can always be
+ * grabbed again.
+ *
+ * A stored position can be stale for reasons that have nothing to do with this
+ * app — an external monitor that is no longer attached, a resolution change, a
+ * display rearranged in System Settings. Without this, any of those strands the
+ * compact window somewhere unreachable and the only way back is the menu bar.
+ */
+function clampToVisibleScreen(
+	position: StoredWindowPosition,
+	width: number,
+	height: number,
+): StoredWindowPosition {
+	if (typeof window === "undefined") return position;
+
+	// Leave a sliver of the window on screen rather than requiring all of it, so
+	// a position that is only slightly off is nudged instead of recentred.
+	const maxX = Math.max(0, window.screen.availWidth - width);
+	const maxY = Math.max(0, window.screen.availHeight - height);
+
+	return {
+		x: Math.min(Math.max(0, Math.round(position.x)), maxX),
+		y: Math.min(Math.max(0, Math.round(position.y)), maxY),
+	};
+}
+
 function readStoredCompactWindowPosition(): StoredWindowPosition | null {
 	if (typeof window === "undefined") return null;
+
+	// A v1 value is in physical pixels with no way to recover the scale factor
+	// it was written at, so drop it and fall back to the anchored default.
+	window.localStorage.removeItem(LEGACY_COMPACT_WINDOW_POSITION_KEY);
 
 	const raw = window.localStorage.getItem(COMPACT_WINDOW_POSITION_KEY);
 	if (!raw) return null;
 
 	try {
 		const parsed = JSON.parse(raw) as StoredWindowPosition;
-		if (typeof parsed.x === "number" && typeof parsed.y === "number") {
-			return parsed;
+		if (
+			Number.isFinite(parsed.x) &&
+			Number.isFinite(parsed.y)
+		) {
+			return clampToVisibleScreen(
+				parsed,
+				COMPACT_WINDOW_WIDTH,
+				COMPACT_WINDOW_HEIGHT,
+			);
 		}
 	} catch {
 		return null;
@@ -261,12 +304,30 @@ export async function exitCompactWindowMode(): Promise<void> {
 	}
 }
 
+/**
+ * Records where the compact window currently sits, in logical pixels.
+ *
+ * `outerPosition()` reports *physical* pixels while `setPosition` is given a
+ * `LogicalPosition`, so the scale factor has to be divided out here. Storing the
+ * raw physical value instead made every save/restore round trip multiply the
+ * coordinates — on a 2x display a window near the bottom of the screen came back
+ * at twice the offset, i.e. off-screen entirely, which looked like the window
+ * vanishing on reload.
+ */
 export async function persistCompactWindowPosition(): Promise<void> {
 	if (!isTauriRuntime()) return;
 
-	const position = await getCurrentWindow().outerPosition();
+	const appWindow = getCurrentWindow();
+	const physical = await appWindow.outerPosition();
+	const logical = physical.toLogical(await appWindow.scaleFactor());
 
-	writeStoredCompactWindowPosition({ x: position.x, y: position.y });
+	writeStoredCompactWindowPosition(
+		clampToVisibleScreen(
+			{ x: logical.x, y: logical.y },
+			COMPACT_WINDOW_WIDTH,
+			COMPACT_WINDOW_HEIGHT,
+		),
+	);
 }
 
 export async function moveCompactWindowToAnchor(
@@ -285,7 +346,36 @@ export async function moveCompactWindowToAnchor(
 
 export async function startCompactWindowDrag(): Promise<void> {
 	if (!isTauriRuntime()) return;
-	await getCurrentWindow().startDragging();
+
+	// `startDragging` resolves as soon as the drag *begins*, so reading the
+	// position straight after it returns records where the window was before the
+	// user moved it. The window's own move event is what tells us the drag
+	// actually went somewhere; persisting on that also covers a drag ended by
+	// releasing the pointer outside the window, where no mouseup reaches us.
+	const appWindow = getCurrentWindow();
+	let unlisten: (() => void) | null = null;
+	let persistTimer: ReturnType<typeof setTimeout> | null = null;
+
+	const settle = (): void => {
+		if (persistTimer) clearTimeout(persistTimer);
+		// Debounced: a drag emits a move event per frame, and only the resting
+		// place is worth storing.
+		persistTimer = setTimeout(() => {
+			unlisten?.();
+			unlisten = null;
+			void persistCompactWindowPosition();
+		}, 220);
+	};
+
+	try {
+		unlisten = await appWindow.onMoved(settle);
+		await appWindow.startDragging();
+		settle();
+	} catch {
+		unlisten?.();
+		unlisten = null;
+		// Dragging is best-effort; never interrupt the UI for it.
+	}
 }
 
 export async function minimizeDesktopAppWindow(): Promise<void> {
