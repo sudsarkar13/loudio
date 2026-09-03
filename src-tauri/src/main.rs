@@ -6,6 +6,7 @@ use tauri::Manager;
 mod binaries;
 mod bootstrap;
 mod commands;
+mod disk;
 mod diagnostics;
 mod install_flavor;
 mod legacy_migration;

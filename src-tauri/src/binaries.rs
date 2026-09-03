@@ -237,6 +237,11 @@ pub fn venv_python_path(venv_dir: &PathBuf) -> PathBuf {
 /// old.
 const MIN_PYTHON: (u32, u32) = (3, 10);
 
+/// Disk the fallback venv needs once torch and its dependencies are unpacked.
+/// Measured at ~1.1 GB on macOS arm64; the margin covers pip's build caches and
+/// the larger CUDA-enabled wheels on Linux.
+const PYTHON_RUNTIME_BYTES: u64 = 4 * 1024 * 1024 * 1024;
+
 /// Reads `major.minor machine` back from the interpreter probe below.
 ///
 /// Split out from the spawn so the parsing is testable: a wrong answer here
@@ -351,6 +356,15 @@ pub async fn ensure_python_whisper_runtime(app: &tauri::AppHandle) -> Result<Str
     {
         return Ok(venv_python_str);
     }
+
+    // openai-whisper pulls torch, which is the single largest thing Loudio ever
+    // installs. Checked up front so a half-written venv cannot be what fills the
+    // disk.
+    crate::disk::ensure_room_for(
+        &venv_dir,
+        PYTHON_RUNTIME_BYTES,
+        "the Python Whisper runtime (PyTorch and its dependencies)",
+    )?;
 
     if !venv_python.exists() {
         let base_python = resolve_venv_python().await.ok_or_else(|| {

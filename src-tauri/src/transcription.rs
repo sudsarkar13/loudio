@@ -20,6 +20,13 @@ use crate::{
     process::{emit_transcription_progress, run_command},
 };
 
+/// Fallback size assumed when the server will not report one (offline, proxy).
+///
+/// Deliberately generous: the largest model Loudio offers is ~3 GB, and
+/// over-estimating refuses a risky download while under-estimating permits one
+/// that fills the disk.
+const GGML_MODEL_SIZE_GUESS: u64 = 3 * 1024 * 1024 * 1024;
+
 pub fn model_name(settings: &AppSettings, profile: &RuntimeProfile) -> String {
     let custom = settings
         .custom_model
@@ -105,6 +112,15 @@ pub async fn ensure_ggml_model(app: &tauri::AppHandle, model: &str) -> Result<Pa
             );
         }
     }
+
+    // Checked before curl starts: it writes until the filesystem is full, and a
+    // full disk breaks unrelated software rather than just this download. The
+    // expected size is known here whenever the server reported one.
+    crate::disk::ensure_room_for(
+        &model_path,
+        expected_len.unwrap_or(GGML_MODEL_SIZE_GUESS),
+        &format!("the {model} whisper model"),
+    )?;
 
     run_command(
         "curl",

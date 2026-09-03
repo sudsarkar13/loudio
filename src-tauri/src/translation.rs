@@ -21,6 +21,10 @@ use crate::{
 /// targets.
 const NLLB_MODEL_ID: &str = "facebook/nllb-200-distilled-600M";
 
+/// Disk the checkpoint needs. The weights are ~2.5 GB; the rest is headroom for
+/// the tokenizer and the cache's in-flight copies.
+const NLLB_DOWNLOAD_BYTES: u64 = 3 * 1024 * 1024 * 1024;
+
 /// Maps Loudio's ISO-639-1 codes onto the FLORES-200 codes NLLB expects.
 ///
 /// NLLB identifies a language *and its script* — Hindi and Urdu share a
@@ -85,7 +89,10 @@ from transformers import AutoModelForSeq2SeqLM, AutoTokenizer
 
 model_id = job["model_id"]
 tokenizer = AutoTokenizer.from_pretrained(model_id, src_lang=job["source"])
-model = AutoModelForSeq2SeqLM.from_pretrained(model_id)
+# use_safetensors pins the download to one weight format. The repo ships both
+# safetensors and a pickled .bin of the same weights, and letting the library
+# choose fetched *both* -- 2.4 GB of disk for a file that is then never loaded.
+model = AutoModelForSeq2SeqLM.from_pretrained(model_id, use_safetensors=True)
 
 target_id = tokenizer.convert_tokens_to_ids(job["target"])
 
@@ -264,6 +271,15 @@ pub async fn translate_text(
     if source == target {
         return Ok(text.to_string());
     }
+
+    // The checkpoint plus the Hugging Face cache's working copies. Checked
+    // before anything is fetched, because `from_pretrained` streams straight to
+    // disk with no size ceiling of its own.
+    crate::disk::ensure_room_for(
+        &runtime_dir(app)?,
+        NLLB_DOWNLOAD_BYTES,
+        "the NLLB-200 translation model",
+    )?;
 
     let python = ensure_python_whisper_runtime(app)
         .await
