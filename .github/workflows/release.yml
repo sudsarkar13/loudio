@@ -239,7 +239,9 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: loudio-linux
-          path: src-tauri/target/release/bundle/deb/*.deb
+          path: |
+            src-tauri/target/release/bundle/deb/*.deb
+            src-tauri/target/release/bundle/deb/*.deb.sig
           if-no-files-found: error
 
   build-macos:
@@ -427,11 +429,36 @@ jobs:
           bash .github/scripts/verify-artifacts.sh "$EXPECTED_VERSION" \
             src-tauri/target/release/bundle/dmg
 
+      # The bundler names the updater archive `Loudio.app.tar.gz` with no
+      # architecture in it, so two matrix legs would produce the same filename,
+      # collide in the flat release directory, and be published under whichever
+      # platform key happened to win. Stamping the arch on here keeps the
+      # manifest honest if the Intel leg is ever restored.
+      - name: Name the updater artifacts by architecture
+        env:
+          ARCH: ${{ matrix.arch }}
+        run: |
+          set -euo pipefail
+          cd src-tauri/target/release/bundle/macos
+          for f in Loudio.app.tar.gz Loudio.app.tar.gz.sig; do
+            if [ ! -f "$f" ]; then
+              echo "::error::Expected updater artifact '$f' was not produced."
+              echo "::error::Check bundle.createUpdaterArtifacts and that"
+              echo "::error::TAURI_SIGNING_PRIVATE_KEY was set for this build."
+              exit 1
+            fi
+            mv "$f" "${f/Loudio.app/Loudio_${ARCH}.app}"
+          done
+          ls -la
+
       - name: Upload macOS artifact
         uses: actions/upload-artifact@v4
         with:
           name: loudio-macos-${{ matrix.arch }}
-          path: src-tauri/target/release/bundle/dmg/*.dmg
+          path: |
+            src-tauri/target/release/bundle/dmg/*.dmg
+            src-tauri/target/release/bundle/macos/*.app.tar.gz
+            src-tauri/target/release/bundle/macos/*.app.tar.gz.sig
           if-no-files-found: error
 
   publish:

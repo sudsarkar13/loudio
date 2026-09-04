@@ -50,7 +50,6 @@ export function AppUpdateCard(update: UseAppUpdateResult) {
 		availableVersion,
 		releaseNotes,
 		downloadPercent,
-		errorMessage,
 		installInfo,
 		canSelfUpdate,
 		checkForUpdate,
@@ -59,10 +58,12 @@ export function AppUpdateCard(update: UseAppUpdateResult) {
 	} = update;
 
 	const isBusy = stage === "checking" || stage === "downloading";
+	// A failed *check* is not a problem with the user's system — the release
+	// server was unreachable, or no manifest is published yet. Painting that red
+	// next to a green "your system is ready" ring reads as though something
+	// broke. Only states the user can act on get an accent.
 	const tone =
-		stage === "available" || stage === "installed" ? "attention"
-		: stage === "error" ? "blocked"
-		: "neutral";
+		stage === "available" || stage === "installed" ? "attention" : "neutral";
 
 	function headline(): string {
 		switch (stage) {
@@ -79,7 +80,7 @@ export function AppUpdateCard(update: UseAppUpdateResult) {
 			case "unsupported":
 				return `Updates are managed by ${installInfo?.label ?? "your package manager"}`;
 			case "error":
-				return "Could not check for updates";
+				return "Update check unavailable";
 			case "idle":
 			default:
 				return "Application updates";
@@ -101,7 +102,10 @@ export function AppUpdateCard(update: UseAppUpdateResult) {
 			case "unsupported":
 				return `${installInfo?.label ?? "This package"} installs Loudio updates for you, so there is nothing to do here.`;
 			case "error":
-				return errorMessage || "The release server could not be reached.";
+				return (
+					"Could not reach the release server. This does not affect " +
+					"transcription — try again later."
+				);
 			case "idle":
 			default:
 				return "Check whether a newer release of Loudio is available.";

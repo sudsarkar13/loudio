@@ -2974,6 +2974,16 @@ summary:focus-visible {
 	gap: 0.5rem;
 }
 
+/* `.btn` is not a flex container, so an icon and its label sit flush against
+   each other. Every button in this card pairs the two. */
+.upd-actions .btn {
+	display: inline-flex;
+	align-items: center;
+	justify-content: center;
+	gap: 0.4rem;
+	white-space: nowrap;
+}
+
 /* The lemniscate "working" mark ------------------------------ */
 
 .upd-pulse-track {
