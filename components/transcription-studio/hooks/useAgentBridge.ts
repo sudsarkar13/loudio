@@ -42,6 +42,8 @@ export interface AgentBridgeActions {
 	clearTranscript: () => void;
 	updateSettings: (patch: Partial<AppSettings>) => void;
 	selectView: (view: "activity" | "history") => void;
+	/** Opens the System Readiness window, so its UI can be reviewed on demand. */
+	openReadiness: () => void;
 }
 
 interface InvokeEvent {
@@ -85,6 +87,8 @@ export function useAgentBridge(
 					return current.startRecording();
 				case "stop_recording":
 					return current.stopRecording();
+				case "open_readiness":
+					return current.openReadiness();
 				case "toggle_compact_mode":
 					return current.toggleCompactMode();
 				case "set_compact_mode":

@@ -2,6 +2,7 @@
 const nextConfig = {
 	typedRoutes: true,
 	output: "export",
+	trailingSlash: true,
 	transpilePackages: [
 		"@tauri-apps/api",
 		"@tauri-apps/plugin-clipboard-manager",

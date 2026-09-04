@@ -1,9 +1,14 @@
+import { ShieldAlert, ShieldCheck } from "lucide-react";
+
 interface GeneralTopStripProps {
 	activeProfileTitle: string;
 	isBootstrapping: boolean;
 	activeView: "activity" | "history";
 	onSelectView: (view: "activity" | "history") => void;
 	onToggleCompactMode: () => void;
+	/** True when a required component is missing, outdated or failed. */
+	hasReadinessIssues: boolean;
+	onOpenReadiness: () => void;
 }
 
 export function GeneralTopStrip({
@@ -12,6 +17,8 @@ export function GeneralTopStrip({
 	activeView,
 	onSelectView,
 	onToggleCompactMode,
+	hasReadinessIssues,
+	onOpenReadiness,
 }: GeneralTopStripProps) {
 	return (
 		<section className="top-strip" aria-label="App status">
@@ -19,9 +26,28 @@ export function GeneralTopStrip({
 				{activeProfileTitle || "Runtime profile"}
 			</span>
 			<div className="top-strip-actions">
-				<span className="top-strip-state">
-					{isBootstrapping ? "Preparing" : "Ready"}
-				</span>
+				{/* The status readout doubles as the way in. Readiness has no other
+				    entry point now that it is a separate window, and a user who
+				    wants to check on their system reaches for the thing already
+				    telling them whether it is healthy. */}
+				<button
+					type="button"
+					className={
+						hasReadinessIssues ?
+							"btn top-strip-readiness top-strip-readiness-alert"
+						:	"btn top-strip-readiness"
+					}
+					onClick={onOpenReadiness}
+					title="Open System Readiness">
+					{hasReadinessIssues ?
+						<ShieldAlert size={13} aria-hidden="true" />
+					:	<ShieldCheck size={13} aria-hidden="true" />}
+					<span>
+						{isBootstrapping ? "Preparing"
+						: hasReadinessIssues ? "Action needed"
+						: "Ready"}
+					</span>
+				</button>
 				<div
 					className="general-view-switch"
 					role="tablist"

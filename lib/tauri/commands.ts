@@ -278,3 +278,32 @@ export async function suggestCorrections(
 		edited,
 	});
 }
+
+/**
+ * Opens the System Readiness window, or focuses it if already open.
+ *
+ * Readiness runs in its own OS window rather than as an overlay: it installs
+ * system packages, which can take minutes, and trapping the main window behind
+ * a modal for that whole time is the flaw this replaces.
+ */
+export async function openReadinessWindow(): Promise<void> {
+	if (!isTauriRuntime()) return;
+	await invokeCommand<void>("open_readiness_window");
+}
+
+export async function closeReadinessWindow(): Promise<void> {
+	if (!isTauriRuntime()) return;
+	await invokeCommand<void>("close_readiness_window");
+}
+
+/**
+ * Tells every other window that readiness state changed.
+ *
+ * Carries no payload on purpose — listeners re-run their own check rather than
+ * trusting a report marshalled across a window boundary, so two windows can
+ * never disagree about what is installed.
+ */
+export async function notifyReadinessChanged(): Promise<void> {
+	if (!isTauriRuntime()) return;
+	await invokeCommand<void>("notify_readiness_changed");
+}

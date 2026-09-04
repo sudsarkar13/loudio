@@ -1,7 +1,8 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
+import { describeError, logDiagnostic } from "@/lib/diagnostics";
 import { MODEL_OPTIONS } from "@/components/transcription-studio/constants";
 import {
 	formatPlaybackTime,
@@ -24,10 +25,14 @@ import { CompactShell } from "@/components/transcription-studio/components/Compa
 import { GeneralTopStrip } from "@/components/transcription-studio/components/GeneralTopStrip";
 import { RecordingHistoryView } from "@/components/transcription-studio/components/RecordingHistoryView";
 import { SettingsPanel } from "@/components/transcription-studio/components/SettingsPanel";
-import { SystemReadinessWizard } from "@/components/transcription-studio/components/SystemReadinessWizard/SystemReadinessWizard";
-import { ReadinessDriftBanner } from "@/components/transcription-studio/components/SystemReadinessWizard/ReadinessDriftBanner";
+import { ReadinessDriftBanner } from "@/components/readiness/ReadinessDriftBanner";
 import { WorkspaceActivityView } from "@/components/transcription-studio/components/WorkspaceActivityView";
-import { isTauriRuntime } from "@/lib/tauri";
+import {
+	isTauriRuntime,
+	listenReadinessChanged,
+	listenReadinessWindowClosed,
+	openReadinessWindow,
+} from "@/lib/tauri";
 
 export function TranscriptionStudio() {
 	const {
@@ -56,7 +61,8 @@ export function TranscriptionStudio() {
 		needsWizard,
 		driftIds,
 		check: recheckReadiness,
-		enterApp: enterReadinessApp,
+		hasBlockingItems: hasReadinessIssues,
+		refreshAcknowledgement,
 	} = useSystemReadinessWizard();
 
 	const isTauri = isTauriRuntime();
@@ -93,16 +99,66 @@ export function TranscriptionStudio() {
 		setStatus,
 	});
 
-	const [forceWizard, setForceWizard] = useState<boolean>(false);
-	const showWizard = needsWizard || forceWizard;
+	const openReadiness = useCallback(() => {
+		// Failing to open readiness used to be silent, which is the worst
+		// outcome for the one screen that explains why nothing else works.
+		void openReadinessWindow().catch((error: unknown) => {
+			logDiagnostic("error", "readiness", "Could not open readiness window", {
+				error: describeError(error),
+			});
+		});
+	}, []);
+
 	const onReviewDrift = useCallback(() => {
-		setForceWizard(true);
-		void recheckReadiness(true);
-	}, [recheckReadiness]);
-	const onEnterReadinessApp = useCallback(() => {
-		enterReadinessApp();
-		setForceWizard(false);
-	}, [enterReadinessApp]);
+		openReadiness();
+	}, [openReadiness]);
+
+	// Auto-open at most once per launch. Without the guard, a user who closes
+	// the window while something is still outstanding would have it reopened by
+	// the very next re-check — the window would refuse to stay shut.
+	const hasAutoOpenedReadiness = useRef<boolean>(false);
+	useEffect(() => {
+		if (!isTauri || hasAutoOpenedReadiness.current) return;
+		if (isCheckingEula) return;
+		if (!needsWizard) {
+			logDiagnostic("info", "readiness", "System is ready; window not opened");
+			hasAutoOpenedReadiness.current = true;
+			return;
+		}
+		hasAutoOpenedReadiness.current = true;
+		logDiagnostic("info", "readiness", "Opening readiness window at startup");
+		openReadiness();
+	}, [isCheckingEula, isTauri, needsWizard, openReadiness]);
+
+	// Readiness now lives in its own window, so its results arrive as events
+	// rather than as shared React state.
+	useEffect(() => {
+		if (!isTauri) return;
+		let disposed = false;
+		const unlisteners: Array<() => void> = [];
+
+		const onChanged = () => {
+			// The acknowledgement flag is read from storage, not from the
+			// payload: the other window has already written it, and re-reading
+			// keeps the two windows from disagreeing.
+			refreshAcknowledgement();
+			void recheckReadiness(true);
+		};
+
+		void listenReadinessChanged(onChanged).then((unlisten) => {
+			if (disposed) unlisten();
+			else unlisteners.push(unlisten);
+		});
+		void listenReadinessWindowClosed(onChanged).then((unlisten) => {
+			if (disposed) unlisten();
+			else unlisteners.push(unlisten);
+		});
+
+		return () => {
+			disposed = true;
+			unlisteners.forEach((unlisten) => unlisten());
+		};
+	}, [isTauri, recheckReadiness, refreshAcknowledgement]);
 
 	const {
 		devices: microphoneDevices,
@@ -231,6 +287,7 @@ export function TranscriptionStudio() {
 		setSettings,
 		settings,
 		isCompactMode,
+		onOpenSystemReadiness: openReadiness,
 	});
 
 	// Development-only: lets an AI agent observe and drive the running app. The
@@ -271,6 +328,7 @@ export function TranscriptionStudio() {
 				setSettings((prev) => ({ ...prev, ...patch }));
 			},
 			selectView: setActiveGeneralView,
+			openReadiness,
 		},
 	);
 
@@ -339,11 +397,6 @@ export function TranscriptionStudio() {
 			className={
 				isCompactMode ? "loudio-shell loudio-shell-compact" : "loudio-shell"
 			}>
-			<SystemReadinessWizard
-				open={isTauriRuntime() && !isCheckingEula && showWizard}
-				onEnterApp={onEnterReadinessApp}
-			/>
-
 			{isCompactMode ?
 				<CompactShell
 					compactAnchor={compactAnchor}
@@ -387,6 +440,8 @@ export function TranscriptionStudio() {
 						activeView={activeGeneralView}
 						onSelectView={setActiveGeneralView}
 						onToggleCompactMode={onToggleCompactMode}
+						hasReadinessIssues={hasReadinessIssues}
+						onOpenReadiness={openReadiness}
 					/>
 
 					<ReadinessDriftBanner driftIds={driftIds} onReview={onReviewDrift} />

@@ -1560,8 +1560,9 @@ summary:focus-visible {
 	border: 1px solid var(--border-soft);
 	border-radius: 14px;
 	padding: 0;
-	display: flex;
-	flex-direction: row;
+	display: grid;
+	grid-template-columns: auto minmax(0, 1fr) auto;
+	align-items: start;
 	gap: 0;
 	overflow: hidden;
 	transition:
@@ -1640,6 +1641,9 @@ summary:focus-visible {
 	display: flex;
 	align-items: center;
 	justify-content: center;
+	/* Top-aligned with the title rather than centred on the whole card: a
+	   card with a long detail line used to float its icon halfway down,
+	   disconnected from the name it belongs to. */
 	padding: 1rem 0.6rem 1rem 1rem;
 	min-width: 56px;
 }
@@ -1761,8 +1765,40 @@ summary:focus-visible {
 
 .readiness-card-actions {
 	display: flex;
-	gap: 0.45rem;
-	flex-wrap: wrap;
+	flex-direction: column;
+	align-items: stretch;
+	gap: 0.4rem;
+	padding: 0.95rem 1rem 0.95rem 0.75rem;
+	min-width: 11.5rem;
+}
+
+.readiness-card-actions .btn {
+	justify-content: center;
+	white-space: nowrap;
+}
+
+/* Full-width rows: the command block and the unsupported-platform note read
+   across the card rather than being trapped in the text column. */
+.readiness-cmd-collapse,
+.readiness-card-warning {
+	grid-column: 1 / -1;
+}
+
+.readiness-cmd-collapse-open {
+	padding: 0 1rem 0.85rem 1rem;
+}
+
+@media (max-width: 720px) {
+	.readiness-card {
+		grid-template-columns: auto minmax(0, 1fr);
+	}
+	.readiness-card-actions {
+		grid-column: 2 / -1;
+		flex-direction: row;
+		flex-wrap: wrap;
+		padding-top: 0;
+		min-width: 0;
+	}
 }
 
 .readiness-cmd-toggle {
@@ -2372,4 +2408,420 @@ summary:focus-visible {
 	.runtime-progress-fill-idle {
 		animation: none;
 	}
+}
+
+/* -----------------------------------------------------------
+   System Readiness window (app/readiness)
+   -----------------------------------------------------------
+   Its own OS window, so unlike the rest of the app it owns the
+   full viewport: a fixed header and footer with only the check
+   list scrolling between them. That keeps the overall verdict
+   and the primary action visible no matter how long the list
+   grows or how far down the user has scrolled.
+   ----------------------------------------------------------- */
+
+.rw-root {
+	display: grid;
+	grid-template-rows: auto 1fr auto;
+	height: 100vh;
+	max-height: 100vh;
+	background:
+		radial-gradient(
+			120% 80% at 50% -10%,
+			rgba(47, 129, 247, 0.13),
+			transparent 60%
+		),
+		var(--bg);
+	color: var(--text);
+	overflow: hidden;
+}
+
+/* Header ---------------------------------------------------- */
+
+.rw-header {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 1rem;
+	padding: 1.15rem 1.6rem;
+	border-bottom: 1px solid var(--border-soft);
+	background: rgba(13, 17, 23, 0.72);
+	backdrop-filter: blur(12px);
+}
+
+.rw-header-title {
+	display: flex;
+	align-items: center;
+	gap: 0.8rem;
+	min-width: 0;
+}
+
+.rw-header-glyph {
+	display: grid;
+	place-items: center;
+	width: 38px;
+	height: 38px;
+	flex: none;
+	border-radius: 11px;
+	color: #cfe3ff;
+	background: linear-gradient(160deg, rgba(47, 129, 247, 0.32), rgba(47, 129, 247, 0.1));
+	border: 1px solid rgba(47, 129, 247, 0.34);
+}
+
+.rw-header h1 {
+	margin: 0;
+	font-size: 1.06rem;
+	font-weight: 650;
+	letter-spacing: -0.01em;
+}
+
+.rw-header-sub {
+	display: flex;
+	align-items: center;
+	gap: 0.4rem;
+	margin: 0.15rem 0 0;
+	font-size: 0.78rem;
+	color: var(--text-faint);
+}
+
+.rw-dot {
+	width: 3px;
+	height: 3px;
+	border-radius: 50%;
+	background: currentColor;
+	opacity: 0.55;
+}
+
+.rw-recheck {
+	flex: none;
+	display: inline-flex;
+	align-items: center;
+	gap: 0.4rem;
+}
+
+.rw-spin {
+	animation: loudio-spin 1s linear infinite;
+}
+
+/* Body ------------------------------------------------------ */
+
+.rw-body {
+	overflow-y: auto;
+	padding: 1.4rem 1.6rem 1.8rem;
+	display: flex;
+	flex-direction: column;
+	gap: 1.5rem;
+}
+
+/* Children of a column flex container shrink below their content by default.
+   In a scrolling panel that is never what you want: it squeezed the hero, and
+   because the hero clips its tone wash the status ring lost its top and bottom
+   and read as two brackets. The panel scrolls; its sections keep their size. */
+.rw-body > * {
+	flex: none;
+}
+
+/* Hero ------------------------------------------------------ */
+
+.rw-hero {
+	display: flex;
+	align-items: center;
+	gap: 1.4rem;
+	padding: 1.15rem 1.4rem;
+	border-radius: 16px;
+	border: 1px solid var(--border-soft);
+	background: linear-gradient(180deg, var(--panel), var(--bg-elev));
+	box-shadow: var(--shadow);
+	position: relative;
+	overflow: hidden;
+}
+
+/* A tone-coloured wash, strongest at the ring and fading out across
+   the copy, so the verdict is legible before a single word is read. */
+.rw-hero::before {
+	content: "";
+	position: absolute;
+	inset: 0;
+	background: radial-gradient(
+		70% 130% at 12% 50%,
+		var(--rw-tone-wash, transparent),
+		transparent 70%
+	);
+	pointer-events: none;
+}
+
+.rw-hero > * {
+	position: relative;
+}
+
+.rw-hero-ready {
+	--rw-tone-wash: rgba(46, 160, 67, 0.16);
+}
+.rw-hero-attention {
+	--rw-tone-wash: rgba(210, 153, 34, 0.16);
+}
+.rw-hero-blocked {
+	--rw-tone-wash: rgba(248, 81, 73, 0.15);
+}
+.rw-hero-working {
+	--rw-tone-wash: rgba(47, 129, 247, 0.16);
+}
+
+.rw-hero-copy h2 {
+	margin: 0;
+	font-size: 1.34rem;
+	font-weight: 640;
+	letter-spacing: -0.015em;
+}
+
+.rw-hero-copy p {
+	margin: 0.4rem 0 0;
+	max-width: 46ch;
+	font-size: 0.87rem;
+	line-height: 1.5;
+	color: var(--text-muted);
+}
+
+/* Status ring ----------------------------------------------- */
+
+.readiness-ring {
+	position: relative;
+	flex: none;
+	display: grid;
+	place-items: center;
+}
+
+.readiness-ring svg {
+	display: block;
+}
+
+.readiness-ring-track {
+	stroke: rgba(255, 255, 255, 0.07);
+}
+
+.readiness-ring-value {
+	stroke: var(--rw-ring-color, var(--focus));
+	/* Length is animated, not opacity: the arc grows into place as
+	   items are installed rather than blinking to a new value. */
+	transition: stroke-dasharray 520ms cubic-bezier(0.22, 1, 0.36, 1);
+	filter: drop-shadow(0 0 6px var(--rw-ring-glow, transparent));
+}
+
+.readiness-ring-ready {
+	--rw-ring-color: var(--success);
+	--rw-ring-glow: rgba(46, 160, 67, 0.45);
+}
+.readiness-ring-attention {
+	--rw-ring-color: #d29922;
+	--rw-ring-glow: rgba(210, 153, 34, 0.45);
+}
+.readiness-ring-blocked {
+	--rw-ring-color: var(--danger);
+	--rw-ring-glow: rgba(248, 81, 73, 0.45);
+}
+.readiness-ring-working {
+	--rw-ring-color: var(--focus);
+	--rw-ring-glow: rgba(47, 129, 247, 0.45);
+}
+
+.readiness-ring-working .readiness-ring-value {
+	animation: loudio-pulse 1.8s ease-in-out infinite;
+}
+
+.readiness-ring-inner {
+	position: absolute;
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+	gap: 0.1rem;
+}
+
+.readiness-ring-label {
+	font-size: 1.5rem;
+	font-weight: 660;
+	letter-spacing: -0.02em;
+	font-variant-numeric: tabular-nums;
+}
+
+.readiness-ring-caption {
+	font-size: 0.68rem;
+	text-transform: uppercase;
+	letter-spacing: 0.09em;
+	color: var(--text-faint);
+}
+
+/* Groups ---------------------------------------------------- */
+
+.rw-group-head {
+	display: flex;
+	align-items: baseline;
+	gap: 0.55rem;
+	flex-wrap: wrap;
+	margin-bottom: 0.7rem;
+}
+
+.rw-group-head h3 {
+	margin: 0;
+	font-size: 0.73rem;
+	font-weight: 640;
+	text-transform: uppercase;
+	letter-spacing: 0.12em;
+	color: var(--text-muted);
+}
+
+.rw-group-count {
+	display: inline-grid;
+	place-items: center;
+	min-width: 1.15rem;
+	height: 1.15rem;
+	padding: 0 0.32rem;
+	border-radius: 999px;
+	font-size: 0.68rem;
+	font-variant-numeric: tabular-nums;
+	color: var(--text-faint);
+	background: var(--panel-3);
+	border: 1px solid var(--border-soft);
+}
+
+.rw-group-head p {
+	margin: 0;
+	flex: 1 1 16ch;
+	font-size: 0.76rem;
+	color: var(--text-faint);
+}
+
+.rw-group-items {
+	display: flex;
+	flex-direction: column;
+	gap: 0.7rem;
+}
+
+/* Loading skeleton ------------------------------------------ */
+
+.rw-skeleton-list {
+	display: flex;
+	flex-direction: column;
+	gap: 0.7rem;
+}
+
+.rw-skeleton {
+	height: 92px;
+	border-radius: 12px;
+	border: 1px solid var(--border-soft);
+	background: linear-gradient(
+		100deg,
+		var(--panel) 30%,
+		var(--panel-2) 50%,
+		var(--panel) 70%
+	);
+	background-size: 220% 100%;
+	animation: rw-shimmer 1.4s ease-in-out infinite;
+}
+
+@keyframes rw-shimmer {
+	from {
+		background-position: 140% 0;
+	}
+	to {
+		background-position: -40% 0;
+	}
+}
+
+/* Footer ---------------------------------------------------- */
+
+.rw-footer {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 1rem;
+	padding: 0.9rem 1.6rem;
+	border-top: 1px solid var(--border-soft);
+	background: rgba(13, 17, 23, 0.82);
+	backdrop-filter: blur(12px);
+}
+
+.rw-footer-right {
+	display: flex;
+	align-items: center;
+	gap: 0.85rem;
+	margin-left: auto;
+}
+
+.rw-footer-status {
+	font-size: 0.78rem;
+	color: var(--text-faint);
+}
+
+.rw-continue {
+	min-width: 11rem;
+	justify-content: center;
+}
+
+.rw-web-note {
+	margin: 0;
+	padding: 0.5rem 1.6rem;
+	font-size: 0.75rem;
+	color: var(--text-faint);
+	border-top: 1px solid var(--border-soft);
+}
+
+/* Narrow windows: the hero stacks rather than squeezing the ring. */
+@media (max-width: 760px) {
+	.rw-hero {
+		flex-direction: column;
+		text-align: center;
+		gap: 1.1rem;
+	}
+	.rw-hero-copy p {
+		max-width: none;
+	}
+	.rw-footer {
+		flex-wrap: wrap;
+	}
+}
+
+@media (prefers-reduced-motion: reduce) {
+	.rw-spin,
+	.rw-skeleton,
+	.readiness-ring-working .readiness-ring-value {
+		animation: none;
+	}
+	.readiness-ring-value {
+		transition: none;
+	}
+}
+
+/* Readiness entry point in the general-mode top strip. */
+.top-strip-readiness {
+	display: inline-flex;
+	align-items: center;
+	gap: 0.35rem;
+	padding: 0.28rem 0.6rem;
+	font-size: 0.78rem;
+	color: var(--text-muted);
+	background: transparent;
+	border: 1px solid transparent;
+	border-radius: 8px;
+	transition:
+		color 140ms ease,
+		background 140ms ease,
+		border-color 140ms ease;
+}
+
+.top-strip-readiness:hover {
+	color: var(--text);
+	background: var(--panel-2);
+	border-color: var(--border-soft);
+}
+
+.top-strip-readiness-alert {
+	color: #f0c674;
+	border-color: rgba(210, 153, 34, 0.34);
+	background: rgba(210, 153, 34, 0.1);
+}
+
+.top-strip-readiness-alert:hover {
+	color: #f7d79a;
+	background: rgba(210, 153, 34, 0.16);
+	border-color: rgba(210, 153, 34, 0.5);
 }

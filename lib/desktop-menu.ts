@@ -58,6 +58,7 @@ export interface DesktopMenuActions {
 	clearTranscript: () => void;
 	toggleAutoCopy: () => void;
 	bootstrapRuntime: () => Promise<void>;
+	openSystemReadiness: () => void;
 	isAutoCopyEnabled: boolean;
 	isCompactModeEnabled: boolean;
 }
@@ -259,6 +260,13 @@ async function buildMenu(aboutIcon: MenuIcon): Promise<BuiltMenu> {
 				},
 			},
 			{ item: "Separator" },
+			{
+				id: "help_system_readiness",
+				text: "System Readiness…",
+				action: () => {
+					void currentActions?.openSystemReadiness();
+				},
+			},
 			{
 				id: "help_bootstrap_runtime",
 				text: "Run Runtime Bootstrap",

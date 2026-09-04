@@ -14,6 +14,7 @@ mod legacy_migration;
 mod models;
 mod paths;
 mod process;
+mod readiness_window;
 mod recordings;
 mod system_readiness;
 mod transcription;
@@ -137,6 +138,9 @@ fn main() {
             system_readiness::reset_readiness_skips,
             system_readiness::read_full_license,
             system_readiness::readiness_manual,
+            readiness_window::open_readiness_window,
+            readiness_window::close_readiness_window,
+            readiness_window::notify_readiness_changed,
             commands::transcribe_audio,
             commands::transcribe_microphone_audio,
             commands::list_microphone_recordings,

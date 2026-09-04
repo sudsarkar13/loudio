@@ -87,6 +87,7 @@ const ALLOWED_ACTIONS: &[&str] = &[
     "clear_transcript",
     "update_settings",
     "select_view",
+    "open_readiness",
 ];
 
 #[derive(Debug, Deserialize)]
@@ -94,6 +95,16 @@ struct InvokeRequest {
     action: String,
     #[serde(default)]
     args: serde_json::Value,
+}
+
+fn default_window_label() -> String {
+    "main".to_string()
+}
+
+#[derive(Debug, Deserialize)]
+struct ScreenshotRequest {
+    #[serde(default = "default_window_label")]
+    window: String,
 }
 
 #[derive(Debug, Deserialize)]
@@ -359,10 +370,18 @@ async fn dispatch(
             }
         }
 
-        ("POST", "/screenshot") => match capture_window(app).await {
-            Ok(path) => (200, serde_json::json!({ "path": path })),
-            Err(error) => (500, serde_json::json!({ "error": format!("{error:#}") })),
-        },
+        ("POST", "/screenshot") => {
+            // Defaults to the main window; `{"window": "readiness"}` targets
+            // another. Readiness is its own OS window now, so an agent
+            // reviewing it needs to be able to say which one it means.
+            let label = serde_json::from_slice::<ScreenshotRequest>(&request.body)
+                .map(|body| body.window)
+                .unwrap_or_else(|_| default_window_label());
+            match capture_window(app, &label).await {
+                Ok(path) => (200, serde_json::json!({ "path": path, "window": label })),
+                Err(error) => (500, serde_json::json!({ "error": format!("{error:#}") })),
+            }
+        }
 
         ("POST", "/invoke") => match serde_json::from_slice::<InvokeRequest>(&request.body) {
             Ok(invoke) => {
@@ -423,8 +442,8 @@ async fn dispatch(
 /// Returns `None` when the window cannot be measured, in which case the caller
 /// falls back to a full-screen grab rather than failing the capture outright.
 #[cfg(target_os = "macos")]
-fn window_region(app: &tauri::AppHandle) -> Option<String> {
-    let window = app.get_webview_window("main")?;
+fn window_region(app: &tauri::AppHandle, label: &str) -> Option<String> {
+    let window = app.get_webview_window(label)?;
     let scale = window.scale_factor().ok()?;
     let position = window.outer_position().ok()?.to_logical::<f64>(scale);
     let size = window.outer_size().ok()?.to_logical::<f64>(scale);
@@ -443,7 +462,7 @@ fn window_region(app: &tauri::AppHandle) -> Option<String> {
 /// Shelling out to the platform's own tool rather than adding a capture crate:
 /// this is dev-only code, the app already shells out to ffmpeg and whisper, and
 /// a dependency added here would still be audited as part of the project.
-async fn capture_window(app: &tauri::AppHandle) -> Result<String> {
+async fn capture_window(app: &tauri::AppHandle, label: &str) -> Result<String> {
     let dir = crate::paths::app_data_dir(app)?.join("agent-screenshots");
     std::fs::create_dir_all(&dir)?;
     let path = dir.join(format!("{}.png", uuid::Uuid::new_v4()));
@@ -453,7 +472,10 @@ async fn capture_window(app: &tauri::AppHandle) -> Result<String> {
     // window, so anything overlapping those coordinates — an editor, a terminal —
     // is what would land in the file instead of the app. The short settle lets
     // the compositor finish the raise before the shutter.
-    if let Some(window) = app.get_webview_window("main") {
+    let Some(window) = app.get_webview_window(label) else {
+        anyhow::bail!("No window labelled '{label}' is open");
+    };
+    {
         let _ = window.unminimize();
         let _ = window.show();
         let _ = window.set_focus();
@@ -469,7 +491,7 @@ async fn capture_window(app: &tauri::AppHandle) -> Result<String> {
         // `-R` takes logical points, while Tauri reports physical pixels, so the
         // scale factor has to be divided out or the region lands at twice the
         // offset on a Retina display.
-        let region = window_region(app);
+        let region = window_region(app, label);
         let mut args = vec!["-x".to_string(), "-o".to_string()];
         if let Some(region) = region {
             args.push("-R".to_string());
@@ -616,6 +638,6 @@ mod tests {
         // Nothing that reaches outside the UI.
         assert!(!ALLOWED_ACTIONS.contains(&"delete_microphone_recording"));
         assert!(!ALLOWED_ACTIONS.contains(&"save_settings"));
-        assert_eq!(ALLOWED_ACTIONS.len(), 8);
+        assert_eq!(ALLOWED_ACTIONS.len(), 9);
     }
 }

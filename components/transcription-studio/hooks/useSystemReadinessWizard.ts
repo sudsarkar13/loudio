@@ -43,6 +43,15 @@ export interface UseSystemReadinessWizardResult {
 	skip: (id: string) => Promise<void>;
 	resetSkips: () => Promise<void>;
 	enterApp: () => void;
+	/**
+	 * Re-reads the acknowledgement flag from storage.
+	 *
+	 * Readiness now runs in its own window, and the flag it writes is shared
+	 * storage rather than shared React state. Without this the main window
+	 * would keep its stale `hasAcknowledged` from mount, decide readiness is
+	 * still outstanding, and re-open the window the user just dismissed.
+	 */
+	refreshAcknowledgement: () => void;
 }
 
 const READINESS_COMPLETED_KEY = "loudio:readiness:completed:v1";
@@ -76,9 +85,6 @@ export function useSystemReadinessWizard(): UseSystemReadinessWizardResult {
 		Record<string, ReadinessProgressEvent>
 	>({});
 	const [installingId, setInstallingId] = useState<string | null>(null);
-	const [hasAcknowledged, setHasAcknowledged] = useState<boolean>(() =>
-		readCompletedFlag(),
-	);
 	const [isInitialCheckComplete, setIsInitialCheckComplete] =
 		useState<boolean>(false);
 	const unlistenRef = useRef<(() => void) | null>(null);
@@ -145,7 +151,10 @@ export function useSystemReadinessWizard(): UseSystemReadinessWizardResult {
 
 				const passes = requiredItemsPass(next);
 				if (passes) {
-					setStage(hasAcknowledged ? "ready" : "review");
+					// Read from storage, never from captured state: the readiness
+					// window may have written this flag moments ago, in a
+					// different webview.
+					setStage(readCompletedFlag() ? "ready" : "review");
 				} else if (next.items.some((i) => i.state === "skipped")) {
 					setStage("skipped");
 				} else {
@@ -169,7 +178,7 @@ export function useSystemReadinessWizard(): UseSystemReadinessWizardResult {
 				return null;
 			}
 		},
-		[hasAcknowledged, wireListener],
+		[wireListener],
 	);
 
 	useEffect(() => {
@@ -223,7 +232,10 @@ export function useSystemReadinessWizard(): UseSystemReadinessWizardResult {
 				setReport(refreshed);
 				const passes = requiredItemsPass(refreshed);
 				if (passes) {
-					setStage(hasAcknowledged ? "ready" : "review");
+					// Read from storage, never from captured state: the readiness
+					// window may have written this flag moments ago, in a
+					// different webview.
+					setStage(readCompletedFlag() ? "ready" : "review");
 				} else {
 					setStage("review");
 				}
@@ -246,7 +258,7 @@ export function useSystemReadinessWizard(): UseSystemReadinessWizardResult {
 				if (mountedRef.current) setInstallingId(null);
 			}
 		},
-		[hasAcknowledged, wireListener],
+		[wireListener],
 	);
 
 	const install = useCallback(
@@ -310,8 +322,12 @@ export function useSystemReadinessWizard(): UseSystemReadinessWizardResult {
 
 	const enterApp = useCallback(() => {
 		writeCompletedFlag(true);
-		setHasAcknowledged(true);
 		setStage("ready");
+	}, []);
+
+	const refreshAcknowledgement = useCallback(() => {
+		if (!readCompletedFlag()) return;
+		setStage((current) => (current === "review" ? "ready" : current));
 	}, []);
 
 	const driftIds = useMemo(() => report?.drift ?? [], [report]);
@@ -349,5 +365,6 @@ export function useSystemReadinessWizard(): UseSystemReadinessWizardResult {
 		skip,
 		resetSkips,
 		enterApp,
+		refreshAcknowledgement,
 	};
 }

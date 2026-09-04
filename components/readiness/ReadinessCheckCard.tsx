@@ -228,8 +228,13 @@ export function ReadinessCheckCard({
 					<p className="readiness-card-error">{progress.message}</p>
 				:	null}
 
-				<footer className="readiness-card-foot">
-					<div className="readiness-card-actions">
+			</div>
+
+			{/* Its own column rather than a row under the text. On a 940px
+			    window a left-aligned button row left most of the card empty and
+			    made every item look unfinished; actions now sit where the eye
+			    lands after reading, and the card uses its width. */}
+			<div className="readiness-card-actions">
 						{showAction ?
 							<button
 								type="button"
@@ -294,8 +299,7 @@ export function ReadinessCheckCard({
 							<span>Manual command</span>
 							<ChevronDown size={14} className="readiness-chevron" />
 						</button>
-					</div>
-				</footer>
+			</div>
 
 				<div
 					className={`readiness-cmd-collapse${showCommand && manualCommand ? " readiness-cmd-collapse-open" : ""}`}
@@ -320,16 +324,15 @@ export function ReadinessCheckCard({
 					</div>
 				</div>
 
-				{!check.platformSupported ?
-					<div className="readiness-card-warning">
-						<X size={14} />
-						<span>
-							Automatic install is not available on this platform. Use the
-							manual command.
-						</span>
-					</div>
-				:	null}
-			</div>
+			{!check.platformSupported ?
+				<div className="readiness-card-warning">
+					<X size={14} />
+					<span>
+						Automatic install is not available on this platform. Use the
+						manual command.
+					</span>
+				</div>
+			:	null}
 		</article>
 	);
 }

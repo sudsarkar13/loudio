@@ -3,7 +3,9 @@
 export {
 	isTauriRuntime,
 	invokeCommand,
+	listenReadinessChanged,
 	listenReadinessProgress,
+	listenReadinessWindowClosed,
 	listenRuntimeBootstrapProgress,
 	listenTranscriptionProgress,
 } from "@/lib/tauri/runtime";
@@ -11,6 +13,7 @@ export {
 export {
 	checkSystemReadiness,
 	chooseAudioFile,
+	closeReadinessWindow,
 	deleteMicrophoneRecording,
 	getCurrentRecordingsOutputDir,
 	getMicrophoneRecordingPlaybackUrl,
@@ -22,6 +25,8 @@ export {
 	listLegacyRecordingDirs,
 	listMicrophoneRecordingHistory,
 	migrateLegacyRecordings,
+	notifyReadinessChanged,
+	openReadinessWindow,
 	readFullLicense,
 	readinessManualCommand,
 	resetReadinessSkips,

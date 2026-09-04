@@ -72,3 +72,19 @@ export async function listenReadinessProgress(
 		callback(event.payload);
 	});
 }
+
+/** Fires when any window reports that readiness state changed. */
+export async function listenReadinessChanged(
+	handler: () => void,
+): Promise<() => void> {
+	if (!isTauriRuntime()) return () => {};
+	return listen("readiness://changed", () => handler());
+}
+
+/** Fires when the readiness window is destroyed, however it was closed. */
+export async function listenReadinessWindowClosed(
+	handler: () => void,
+): Promise<() => void> {
+	if (!isTauriRuntime()) return () => {};
+	return listen("readiness://closed", () => handler());
+}

@@ -20,6 +20,7 @@ interface UseDesktopMenuBindingsOptions {
   setSettings: React.Dispatch<React.SetStateAction<AppSettings>>;
   settings: AppSettings;
   isCompactMode: boolean;
+  onOpenSystemReadiness: () => void;
 }
 
 export function useDesktopMenuBindings({
@@ -33,6 +34,7 @@ export function useDesktopMenuBindings({
   setSettings,
   settings,
   isCompactMode,
+  onOpenSystemReadiness,
 }: UseDesktopMenuBindingsOptions): void {
   useEffect(() => {
     void setupDesktopAppMenu({
@@ -61,6 +63,7 @@ export function useDesktopMenuBindings({
         const message: string = await runRuntimeBootstrap();
         setStatus(message);
       },
+      openSystemReadiness: onOpenSystemReadiness,
       isAutoCopyEnabled: settings.autoCopy,
       isCompactModeEnabled: isCompactMode,
     });
@@ -70,6 +73,7 @@ export function useDesktopMenuBindings({
     onPickAudio,
     onToggleCompactMode,
     onToggleMicRecording,
+    onOpenSystemReadiness,
     onTranscribe,
     setSettings,
     setStatus,
