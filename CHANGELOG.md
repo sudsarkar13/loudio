@@ -6,6 +6,63 @@ publish a tag with no matching section.
 
 ## [Unreleased]
 
+### 🐛 Fixed Bugs & Issues
+- **Speech in any language other than English was silently rewritten as
+  English.** whisper.cpp defaults its language flag to `en` rather than
+  auto-detect, and "Auto Detect" was never passed to the engine — so Hindi came
+  out as English prose and looked like a bad transcription rather than a wrong
+  setting. The chosen language, including auto, now always reaches the engine,
+  and the detected language is read back from it.
+- **The compact window disappeared after a reload on HiDPI displays.** Its
+  position was saved in physical pixels and restored as logical ones, so each
+  reload moved it further off-screen until it was gone. Positions are stored in
+  logical pixels and clamped to a visible screen.
+- **Recordings could capture the same speech twice, or produce a file that
+  would not play.** A second recorder could start before the first had finished
+  opening — two streams writing one buffer. The duplicated audio and the
+  unplayable fragment were the same bug seen from two sides.
+- **`.webm` recordings would not play back.** A recording whose header was
+  missing is now repaired before playback rather than failing silently.
+- **Loudio asked for microphone access on every launch, even once granted.**
+  WebKit does not expose an existing OS grant to the page: its permission query
+  is unimplemented, and device labels stay empty until capture succeeds *in that
+  session*. Both signals therefore read as "denied" on every cold start. The
+  grant is now remembered and quietly re-established at launch.
+- **The Python environment could be built for the wrong CPU architecture.** A
+  bare `python3` resolved to the system interpreter under a packaged app's
+  minimal `PATH`, producing an x86_64 environment on Apple Silicon.
+- **Translated text dropped sentences.** Devanagari sentence boundaries were not
+  recognised, so a whole paragraph was translated as one unit and truncated.
+
+### 🚀 Highlights & Features
+- **System Readiness opens in its own window.** It was a full-screen overlay
+  inside the main window, which conflated the studio you work in with the
+  preflight that decides whether the studio can run. Installing a dependency can
+  take minutes; the main window stays usable throughout. Reachable from the
+  status indicator, from **Help → System Readiness…**, and automatically when
+  something needs attention.
+- **Translate into languages other than English.** whisper.cpp can only
+  translate *to* English, so a local NLLB-200 model now handles the rest.
+  Transcribe keeps the spoken language; Translate targets English by default, or
+  a language you choose.
+- **Choose the translation model size.** The smaller model downloads roughly 3
+  GiB and the larger one roughly 7 GiB; the choice is yours rather than assumed.
+- **Downloads refuse to fill the disk.** Multi-gigabyte model downloads check
+  free space first and keep a 2 GiB reserve.
+- **Diagnostic logging.** Microphone and window events are written to a rotating
+  on-disk log, reachable from **Help → Open Diagnostic Logs…**, so an
+  intermittent failure can be diagnosed after the fact instead of reproduced on
+  demand.
+
+### 🧹 Changed
+- Bumped Next.js from 16.2.9 to 16.3.4.
+
+### 🔧 Development
+- **Dev-only agent bridge.** A loopback, token-authenticated bridge that exposes
+  the running development build — its state, its log, a screenshot of any of its
+  windows, and its test suites — to an AI coding agent over MCP. Compiled out of
+  release builds entirely, not merely disabled.
+
 ## [v1.0.4] - 2026-08-25
 
 ### 🐛 Fixed Bugs & Issues

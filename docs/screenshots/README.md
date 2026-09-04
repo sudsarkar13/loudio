@@ -18,10 +18,16 @@ already wired up in
 | `02-recording.png` | Recording from a selected microphone | Mid-recording, with the mic selector visible |
 | `03-settings.png` | Choosing a local runtime profile, language and output options | The settings panel open |
 | `04-history.png` | Reviewing and replaying earlier recordings | The recording history view with a few entries |
-| `05-readiness.png` | The system readiness wizard checking local dependencies | The readiness wizard mid-check |
+| `05-readiness.png` | The system readiness wizard checking local dependencies | The **System Readiness window** (Help → System Readiness…) mid-check — it is a separate OS window, not an overlay |
 
 `01-main-window.png` is marked `type="default"` and is the one used as the
 primary thumbnail, so make it the most representative shot.
+
+> **`05-readiness.png` is out of date.** It shows the old full-screen overlay.
+> Readiness now opens as its own window, so this shot must be retaken before the
+> next store submission. Keep the caption as-is — it still describes the shot,
+> and the captions live in `src-tauri/appstream/*.metainfo.xml`, which this
+> table only mirrors.
 
 ## Requirements
 

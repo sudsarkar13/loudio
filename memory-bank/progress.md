@@ -26,7 +26,8 @@
 8. Repository and pattern verification pass
 9. **Premium first-run experience pass (current):**
    - added Rust `system_readiness` module + commands
-   - added frontend `useSystemReadinessWizard` + wizard/drift components
+   - added frontend `useSystemReadinessWizard` + readiness/drift components
+   - readiness later moved into its own window (`components/readiness/`, `src-tauri/src/readiness_window.rs`)
    - removed in-app EULA gate; installer license dialog remains the single legal-acceptance surface
    - added `AboutPanel` for license visibility inside the app
    - both `yarn build` and `yarn tauri:build` pass clean with 0 warnings (resolved platform-specific `use tauri::Manager` warning via `#[cfg(target_os = "linux")]`)

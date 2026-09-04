@@ -66,11 +66,17 @@ Loudio is designed for users who want:
 
 - 🎙️ **Microphone recording + auto-transcribe on stop**
 - 📁 **Audio file transcription** (`mp3`, `wav`, `m4a`, `flac`, `aac`, `ogg`)
+- 🌐 **Transcribe in the spoken language, or translate into another** — whisper.cpp
+  handles speech-to-text, a local NLLB-200 model handles non-English targets
+- 🛡️ **System Readiness window** that checks, installs and updates the
+  components Loudio needs, in its own window rather than blocking the app
 - ⚙️ **Runtime bootstrap checks** for ffmpeg / whisper runtimes
 - 🧠 **Multiple runtime profiles** (whisper.cpp + Python Whisper compatibility)
 - ✨ **Live progress updates** during runtime setup and transcription
 - 📋 **Copy and Clear transcript controls**
 - 🕒 **Optional timestamp output**
+- 🩺 **On-disk diagnostic logs** for microphone and window events
+- 💾 **Disk-space guard** — large model downloads refuse to fill the drive
 - 🧩 **Native desktop menu integration** (File/Edit/View/Window/Help)
 - 🍎 **macOS packaging support** (`.app`, `.dmg`) with custom icons
 - 🐧 **Ubuntu packaging support** (`.deb`) for Debian-based Linux distributions
@@ -83,17 +89,29 @@ Loudio is designed for users who want:
 - **Backend Engine:** Rust
 - **Audio Conversion:** ffmpeg
 - **Transcription Engines:** whisper.cpp and Python OpenAI Whisper
+- **Translation:** NLLB-200 (local, for targets other than English)
 
 ## Project Structure
 
 ```text
 loudio/
 ├── app/                 # Next.js App Router UI
+│   └── readiness/       # Route behind the System Readiness window
+├── components/          # React components
+│   └── readiness/       # System Readiness window UI
+├── lib/                 # Tauri bindings, diagnostics, shared helpers
 ├── public/              # Static assets (including logo)
 ├── src-tauri/           # Tauri + Rust backend and desktop config
 ├── scripts/             # Utility scripts
+├── docs/                # Plans and platform notes
 └── memory-bank/         # Project documentation/state files
 ```
+
+Loudio ships two windows. The main studio is served from `/`, and System
+Readiness from `/readiness/` — a second `WebviewWindow` created on demand, with
+its own [capability file](src-tauri/capabilities/readiness.json). The trailing
+slash pairs with `trailingSlash: true` in `next.config.mjs` so the route
+resolves identically in `tauri dev` and in a packaged build.
 
 ## Prerequisites
 
@@ -169,8 +187,19 @@ Loudio checks and/or prepares:
 - `ffmpeg` for audio normalization/conversion to WAV
 - `whisper-cli` (whisper.cpp)
 - Python whisper runtime in an app-local virtual environment (fallback compatibility path)
+- An NLLB-200 translation model, downloaded only if you translate into a
+  language other than English
 
 This improves reliability for real-world microphone transcription workflows.
+
+**Transcribe vs Translate.** Transcribe keeps whatever language was spoken.
+Translate produces English by default, or the target language you pick. Because
+whisper.cpp can only translate *to* English, any other target runs the
+transcript through the local NLLB-200 model afterwards.
+
+**Disk space.** Model downloads are large — an NLLB-200 model is roughly 3 GiB
+or 7 GiB depending on which size you choose. Loudio checks free space first and
+keeps a 2 GiB reserve rather than filling the drive.
 
 ## Validation
 
@@ -178,8 +207,14 @@ Recommended local checks:
 
 ```bash
 npx tsc --noEmit
-cargo check --manifest-path src-tauri/Cargo.toml
+yarn build
+cargo test --manifest-path src-tauri/Cargo.toml
+cargo check --release --manifest-path src-tauri/Cargo.toml
 ```
+
+The release check matters on its own: the development-only agent bridge is
+compiled out of release builds, so a change that only compiles in debug will
+pass `cargo check` and still fail to ship.
 
 ## Troubleshooting
 
@@ -192,6 +227,22 @@ try:
 - Verifying `ffmpeg` is available in your PATH
 - Running **Help → Run Runtime Bootstrap** inside the app
 - Setting `LOUDIO_FFMPEG_PATH` if ffmpeg is installed in a non-standard location
+
+### Loudio keeps asking for microphone access
+
+Grant it once from the Settings panel. If the prompt returns on every launch,
+check that microphone access is still allowed for Loudio in your OS privacy
+settings — Loudio remembers the grant itself, and only forgets it when the
+system actually denies capture.
+
+Note that a locally built app and an installed one are separate identities to
+the OS, so each asks once in its own right.
+
+### Something is missing and Loudio will not transcribe
+
+Open **Help → System Readiness…**. It reports what is installed, what is
+missing and what has an update available, and can install most of it for you —
+or hand you the exact command to run yourself.
 
 ## Releases
 
