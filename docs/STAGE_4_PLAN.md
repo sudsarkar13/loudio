@@ -1,6 +1,7 @@
 # Stage 4 — Local structuring model
 
-> **Status:** planned, not started. Scheduled to begin after the v1.0.3 release.
+> **Status:** planned, not started. Targeted at **v1.0.7** — see the store
+> distribution plan, which gates this on both store launches.
 > **Decision taken:** `gemma-3-270m-it`, quantized, **bundled** with the app.
 
 ## Why there is a stage 4 at all

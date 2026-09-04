@@ -5,7 +5,7 @@
 > **Prerequisite for both:** rename the application ID (see below).
 > **Confinement:** strict — decided, see Decisions.
 > **Build divergence:** accepted, with an install-flavour indicator — decided.
-> **Stage 4:** deferred to **v1.0.5**, after both store launches.
+> **Stage 4:** deferred to **v1.0.7**, after both store launches.
 > **Now in progress:** the store launches themselves, working down the
 > sequencing list below.
 
@@ -258,8 +258,13 @@ size-verified, and Flathub permits runtime *model* downloads — Buzz and Speech
 Note both do exactly this. Structuring is also off by default, so bundling would
 make every user download 253 MB for an optional feature.
 
-**Deferred to v1.0.5.** Both store launches come first, so that version
+**Deferred to v1.0.7.** Both store launches come first, so that version
 control and changelogs are established before a model lands in the packages.
+
+Originally scheduled for v1.0.5, then v1.0.6. Both slots were taken — first by
+unplanned work, then by deferred updates that have to land before this. The
+version moved each time rather than folding the structuring model into a release
+it was not scoped for.
 
 ## Release pipeline shape — the target we are building toward
 
