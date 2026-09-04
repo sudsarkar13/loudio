@@ -177,9 +177,11 @@ export function ReadinessCheckCard({
 						<span className={stateClassName(check.state)}>
 							{stateLabel[check.state]}
 						</span>
-						{check.severity !== "required" ?
-							<span className="pill pill-muted">{check.severity}</span>
-						:	null}
+						{/* The severity pill is gone: every card now sits under a
+						    heading that already says Required / Recommended /
+						    Optional, and repeating it was what pushed longer names
+						    like "OpenAI Whisper (Python)" onto a second line while
+						    their neighbours stayed on one. */}
 					</div>
 					<div className="readiness-card-meta">
 						<span className="readiness-required">
@@ -191,14 +193,18 @@ export function ReadinessCheckCard({
 							</span>
 						:	null}
 						{check.current ?
-							<span className="readiness-current">
+							<span
+								className="readiness-current"
+								title={`Current: ${check.current}`}>
 								Current: {check.current}
 							</span>
 						:	null}
 					</div>
 				</header>
 
-				<p className="readiness-card-desc">{check.description}</p>
+				<p className="readiness-card-desc" title={check.description}>
+					{check.description}
+				</p>
 
 				{check.detail ?
 					<p className="readiness-card-detail">{check.detail}</p>

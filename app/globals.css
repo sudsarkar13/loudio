@@ -1562,7 +1562,14 @@ summary:focus-visible {
 	padding: 0;
 	display: grid;
 	grid-template-columns: auto minmax(0, 1fr);
-	align-items: start;
+	/* The body row absorbs the slack so the action row is pinned to the bottom.
+	   Cards in a row are stretched to a common height by the grid, and without
+	   this their buttons floated at whatever height their text happened to end
+	   at — the ragged, unaligned look. */
+	grid-template-rows: 1fr auto auto auto;
+	/* A floor for cards with almost no content. The real levelling comes from
+	   the fixed two-line description and single-line meta row below. */
+	min-height: 10.5rem;
 	gap: 0;
 	overflow: hidden;
 	transition:
@@ -1702,10 +1709,10 @@ summary:focus-visible {
 }
 
 .readiness-card-body {
-	flex: 1;
+	min-width: 0;
 	display: flex;
 	flex-direction: column;
-	gap: 0.55rem;
+	gap: 0.5rem;
 	padding: 0.9rem 1rem 0.55rem 0.2rem;
 }
 
@@ -1730,17 +1737,50 @@ summary:focus-visible {
 
 .readiness-card-meta {
 	display: flex;
-	gap: 0.85rem;
+	gap: 0.25rem 0.85rem;
 	font-size: 0.78rem;
 	color: var(--text-muted);
-	flex-wrap: wrap;
+	/* One line, always. A long value (the models directory path) wrapped this
+	   row onto a second line in some cards and not others, which is the last
+	   thing that made the grid uneven. The spans truncate instead. */
+	flex-wrap: nowrap;
+	min-width: 0;
 }
 
+/* Labels keep their full width; only the trailing value gives way. Letting
+   every span shrink truncated "Required: writable" down to "Requir…", which is
+   worse than the wrapping it was meant to fix. */
+.readiness-card-meta > span {
+	flex: none;
+	white-space: nowrap;
+}
+
+/* The models directory reports an absolute path long enough to wrap the row.
+   It is the one item allowed to ellipsise; the full value is in the tooltip. */
+.readiness-card-meta > span:last-child {
+	flex: 0 1 auto;
+	min-width: 0;
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
+
+/* Keeps two-line and three-line descriptions from changing the card's rhythm;
+   the full text is still reachable through the tooltip. */
 .readiness-card-desc {
 	margin: 0;
 	color: var(--text);
 	font-size: 0.86rem;
 	line-height: 1.5;
+	/* Exactly two lines, always. Clamped so a long description cannot push a
+	   card taller than its neighbours, and floored at the same two lines so a
+	   short one cannot leave it shorter — which is what made the grid read as
+	   ragged. The full text stays available as a tooltip. */
+	display: -webkit-box;
+	-webkit-box-orient: vertical;
+	-webkit-line-clamp: 2;
+	line-clamp: 2;
+	overflow: hidden;
+	min-height: calc(2 * 1.5 * 0.86rem);
 }
 
 .readiness-card-detail {
@@ -2694,7 +2734,9 @@ summary:focus-visible {
 	display: grid;
 	grid-template-columns: repeat(auto-fill, minmax(21rem, 1fr));
 	gap: 0.75rem;
-	align-items: start;
+	/* `stretch` (the default) is the point: every card in a row takes the row's
+	   height, so the grid reads as a grid rather than as a ragged column pair. */
+	align-items: stretch;
 }
 
 /* Loading skeleton ------------------------------------------ */
