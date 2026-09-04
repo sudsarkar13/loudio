@@ -1,8 +1,18 @@
 # Apple Code Signing & Notarization Setup
 
-> **Status:** the macOS release job in `.github/workflows/create-release-on-version-bump.yml` already contains a fully-wired signing + notarization pipeline. It is implemented as a **gated no-op**: each step checks for the presence of the relevant GitHub secret and **silently skips** when the secret is absent. This means the workflow works today (unsigned `.dmg`) and activates signing/notarization the moment you add the secrets.
+> **Status:** macOS builds are already signed, with a **free self-signed
+> certificate** — see [SELF_SIGNED_CODESIGNING.md](SELF_SIGNED_CODESIGNING.md).
+> That is what keeps the microphone permission alive across updates, and it is
+> the setup currently in use.
 >
-> This document explains the full process for when you're ready to enroll in the Apple Developer Program.
+> This document covers the paid **Developer ID** certificate, which adds the one
+> thing a self-signed certificate cannot: Gatekeeper opening the app without a
+> warning, and notarization. The macOS job in
+> [`.github/workflows/release.yml`](../.github/workflows/release.yml) already
+> contains the full signing + notarization pipeline as a **gated no-op** — each
+> step checks for its secret and skips when absent — so adding the `APPLE_ID`,
+> `APPLE_PASSWORD` and `APPLE_TEAM_ID` secrets is all that is needed to activate
+> notarization once you enroll.
 
 ---
 

@@ -113,6 +113,18 @@
   </screenshots>
 
   <releases>
+    <release version="1.0.7" date="2026-09-04">
+      <url>https://github.com/sudsarkar13/loudio/releases/tag/v1.0.7</url>
+      <description>
+        <p>
+          macOS builds now carry a stable code signature, so updating Loudio no
+          longer takes the microphone permission with it.
+        </p>
+        <ul>
+          <li>Keep microphone access across updates on macOS</li>
+        </ul>
+      </description>
+    </release>
     <release version="1.0.6" date="2026-09-04">
       <url>https://github.com/sudsarkar13/loudio/releases/tag/v1.0.6</url>
       <description>

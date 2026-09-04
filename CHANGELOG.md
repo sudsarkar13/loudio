@@ -6,6 +6,28 @@ publish a tag with no matching section.
 
 ## [Unreleased]
 
+## [v1.0.7] - 2026-09-04
+
+### 🐛 Fixed Bugs & Issues
+- **Updating Loudio on macOS took the microphone permission with it.** macOS
+  pins a privacy grant to the app's designated requirement, and an ad-hoc
+  signed build has nothing to name but its own code hash — so every new build
+  failed the rule the permission was granted under, and capture was refused
+  with no prompt to explain it. Builds are now signed with a stable
+  certificate, whose requirement names the certificate rather than the code, so
+  the grant survives an update. The release fails rather than publish a build
+  that would regress this.
+
+  Anyone updating from an earlier version has to clear the old records once,
+  because macOS will not re-prompt while they exist:
+  `tccutil reset Microphone io.github.sudsarkar13.loudio`. This is the last
+  time it should be necessary.
+
+### 🧹 Changed
+- The certificate is self-signed and free, so Gatekeeper is unaffected: first
+  launch still needs right-click → Open. Removing that warning needs a paid
+  Developer ID certificate, which the pipeline is already wired for.
+
 ## [v1.0.6] - 2026-09-04
 
 Three faults that only showed up in an installed copy of Loudio, and were

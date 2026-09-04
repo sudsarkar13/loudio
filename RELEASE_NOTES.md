@@ -1,35 +1,40 @@
-# v1.0.6 — Stable Release
+# v1.0.7 — Stable Release
 
-Three faults that only appeared in an installed copy of Loudio. Each one was
-invisible to a build run from a terminal, which is why none of them surfaced
-before release.
+Updating Loudio no longer costs you the microphone.
 
 ## What's Changed
 
 ### 🐛 Fixed Bugs & Issues
 
-- **The macOS disk image opened as a plain list of files**, with nothing to drag
-  the app onto. The window layout — its size, the icon sizes, and the app sitting
-  beside the Applications folder — is written by Finder into a `.DS_Store`, and
-  the bundler skips that step whenever it detects a CI environment. It printed no
-  warning and failed nothing, so v1.0.4 and v1.0.5 both shipped an image with no
-  layout at all. The release now opts back in, and refuses to publish an image
-  whose layout is missing rather than letting another one through.
+- **Updating on macOS silently revoked microphone access.** macOS pins a privacy
+  permission to the app's *designated requirement* — a rule the app has to keep
+  satisfying for the grant to hold. Loudio's builds were ad-hoc signed, which
+  gives `codesign` nothing to name but the code's own hash, so every new build
+  failed the rule the permission had been granted under. macOS then refused
+  capture outright rather than asking again, which is why access vanished after
+  an update with no dialog to explain it.
 
-- **The installed app stopped reporting available FFmpeg and whisper.cpp
-  updates.** Readiness looked up `brew` by name, but an app launched from Finder
-  inherits a minimal `PATH` that contains neither Homebrew location. The lookup
-  failed with "not found", which was read as "nothing to update" — so the badge
-  never appeared once Loudio was installed rather than run under a development
-  shell. Homebrew is now found by path.
+  Builds now carry a stable certificate, and the requirement names that
+  certificate instead of the code. It does not change between releases, so the
+  permission survives. The release pipeline checks this on every build and fails
+  rather than publish one that would regress it.
 
-- **The microphone stopped working after an in-app update**, with no permission
-  prompt and only a raw error to go on. macOS ties a microphone grant to the
-  app's code signature, so replacing the app invalidates it, and capture is then
-  denied outright instead of being re-requested. Loudio now says what happened
-  and how to restore access.
+### ⚠️ One-time step when updating
 
-  Fully fixing this needs a stable Developer ID signature, which these builds do
-  not yet carry. Until then, access has to be re-granted after each macOS update:
-  re-enable Loudio under **System Settings › Privacy & Security › Microphone**,
-  or run `tccutil reset Microphone io.github.sudsarkar13.loudio` and relaunch.
+Old permission records were written against the previous, unsigned builds, and
+macOS will not re-prompt while they exist. Clear them once:
+
+```bash
+tccutil reset Microphone io.github.sudsarkar13.loudio
+```
+
+Then relaunch Loudio and allow access when asked. This should not be needed
+again.
+
+### 🧹 Changed
+
+- The certificate is self-signed, which is free and keeps Loudio free to build
+  and distribute. It fixes the permission problem but not Gatekeeper: first
+  launch still needs right-click → **Open**. Removing that warning requires a
+  paid Apple Developer ID certificate, which the pipeline is already wired for
+  should that ever change.

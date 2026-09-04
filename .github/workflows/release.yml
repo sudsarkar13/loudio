@@ -338,6 +338,71 @@ jobs:
 
           echo "enabled=true" >> "$GITHUB_OUTPUT"
 
+      # Import the certificate ourselves rather than handing APPLE_CERTIFICATE
+      # to the bundler, because a self-signed certificate needs one thing the
+      # bundler does not do: a trust anchor. codesign refuses an identity whose
+      # chain it cannot validate — `CSSMERR_TP_NOT_TRUSTED`, reported as the
+      # unhelpful "no identity found" — so the certificate has to be trusted for
+      # code signing on the machine doing the signing. That is a build-time
+      # requirement only; nobody running Loudio needs it, and this runner is
+      # destroyed when the job ends.
+      #
+      # A Developer ID certificate chains to Apple and needs no such step, so
+      # the trust is added only when the certificate is its own issuer.
+      - name: Install the code-signing certificate
+        if: steps.signing.outputs.enabled == 'true'
+        env:
+          APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
+          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+          APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
+        run: |
+          set -euo pipefail
+
+          CERT_PATH="$RUNNER_TEMP/codesign.p12"
+          CERT_PEM="$RUNNER_TEMP/codesign.pem"
+          KEYCHAIN="$RUNNER_TEMP/loudio-signing.keychain-db"
+          KEYCHAIN_PASSWORD="$(openssl rand -base64 24)"
+
+          printf '%s' "$APPLE_CERTIFICATE" | base64 -D > "$CERT_PATH"
+
+          security create-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN"
+          security set-keychain-settings -lut 21600 "$KEYCHAIN"
+          security unlock-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN"
+          security import "$CERT_PATH" -k "$KEYCHAIN" \
+            -P "$APPLE_CERTIFICATE_PASSWORD" \
+            -T /usr/bin/codesign -T /usr/bin/security -f pkcs12
+          # Without this, codesign is prompted for keychain access and hangs.
+          security set-key-partition-list -S apple-tool:,apple:,codesign: \
+            -s -k "$KEYCHAIN_PASSWORD" "$KEYCHAIN" > /dev/null
+          # Prepend, keeping the login keychain reachable. The word splitting
+          # is the point here: the search list is several paths.
+          # shellcheck disable=SC2046
+          security list-keychains -d user -s "$KEYCHAIN" \
+            $(security list-keychains -d user | tr -d '"')
+
+          security find-certificate -c "$APPLE_SIGNING_IDENTITY" -p "$KEYCHAIN" \
+            > "$CERT_PEM"
+          subject="$(openssl x509 -in "$CERT_PEM" -noout -subject | cut -d= -f2-)"
+          issuer="$(openssl x509 -in "$CERT_PEM" -noout -issuer | cut -d= -f2-)"
+
+          if [ "$subject" = "$issuer" ]; then
+            echo "Self-signed certificate — trusting it for code signing."
+            sudo security add-trusted-cert -d -r trustRoot -p codeSign \
+              -k /Library/Keychains/System.keychain "$CERT_PEM"
+          else
+            echo "Certificate chains to an external issuer — no trust step needed."
+          fi
+
+          if ! security find-identity -v -p codesigning "$KEYCHAIN" \
+            | grep -q "$APPLE_SIGNING_IDENTITY"; then
+            echo "::error::'$APPLE_SIGNING_IDENTITY' is not a valid code-signing"
+            echo "::error::identity. Check that APPLE_SIGNING_IDENTITY matches the"
+            echo "::error::certificate's common name exactly."
+            security find-identity -p codesigning "$KEYCHAIN"
+            exit 1
+          fi
+          echo "Signing identity ready."
+
       # Ad-hoc signed ("-"), not left bare.
       #
       # Without an identity the bundler skips codesign entirely, but the linker
@@ -396,11 +461,13 @@ jobs:
           fi
           echo "Bundle signature verified; the .dmg will not read as damaged."
 
+      # APPLE_CERTIFICATE is deliberately absent: the step above already put the
+      # identity in the keychain, and leaving it set would make the bundler
+      # import the certificate a second time into a keychain of its own, which
+      # would not carry the trust settings.
       - name: Build signed .dmg
         if: steps.signing.outputs.enabled == 'true'
         env:
-          APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
-          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
           APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
@@ -443,6 +510,47 @@ jobs:
         run: |
           bash .github/scripts/verify-dmg-layout.sh \
             src-tauri/target/release/bundle/dmg
+
+      # The reason for signing these builds at all is that the designated
+      # requirement then stays constant from release to release. macOS ties a
+      # microphone grant to that requirement, so an ad-hoc bundle — whose
+      # requirement is literally its own code hash — fails it after any rebuild
+      # and the grant is silently dropped. Assert the requirement names the
+      # certificate instead: a regression here would not surface until users
+      # lost microphone access after updating.
+      - name: Verify the signature will survive an update
+        if: steps.signing.outputs.enabled == 'true'
+        run: |
+          set -euo pipefail
+          shopt -s nullglob
+          found=0
+          for app in src-tauri/target/release/bundle/macos/*.app; do
+            found=1
+            echo "Verifying $app"
+            codesign --verify --deep --strict --verbose=2 "$app"
+
+            requirement="$(codesign -d --requirements - "$app" 2>&1 \
+              | grep 'designated' || true)"
+            echo "  $requirement"
+
+            case "$requirement" in
+              *"certificate leaf"*|*"anchor apple generic"*)
+                echo "  Requirement is tied to the certificate — grants survive updates."
+                ;;
+              *)
+                echo "::error::The designated requirement is not tied to the"
+                echo "::error::signing certificate, so macOS will drop the"
+                echo "::error::microphone permission on every update. Check that"
+                echo "::error::APPLE_SIGNING_IDENTITY names a real certificate"
+                echo "::error::rather than falling back to ad-hoc signing."
+                exit 1
+                ;;
+            esac
+          done
+          if [ "$found" -eq 0 ]; then
+            echo "::error::No .app bundle found to verify."
+            exit 1
+          fi
 
       # The bundler names the updater archive `Loudio.app.tar.gz` with no
       # architecture in it, so two matrix legs would produce the same filename,
