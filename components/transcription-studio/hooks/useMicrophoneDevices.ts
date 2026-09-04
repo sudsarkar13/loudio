@@ -300,27 +300,57 @@ export function useMicrophoneDevices(): UseMicrophoneDevicesResult {
 		// click on the button below. A first-run user is never ambushed by a
 		// permission dialog they did not ask for — on macOS or on Linux, where
 		// this would otherwise reach xdg-desktop-portal.
+		//
+		// Deferred until the window is actually on screen. A capture request
+		// made while the document is hidden does not fail — it parks: the
+		// diagnostic log has one that took 45.5s to resolve, against 0.08-0.29s
+		// for every request made with the window visible. WebKit holds the
+		// request until the page is displayed. That matters here because the
+		// updater relaunches straight into a hidden window, which is precisely
+		// when this runs, so firing immediately would leave a capture request
+		// stalled for as long as the user leaves Loudio in the background.
+		let stopWaitingForVisibility: (() => void) | undefined;
+
 		if (remembered && !primedRef.current) {
 			primedRef.current = true;
-			void navigator.mediaDevices
-				.getUserMedia({ audio: true, video: false })
-				.then((stream) => {
-					stream.getTracks().forEach((track) => track.stop());
-					void refresh();
-				})
-				.catch((error: unknown) => {
-					logDiagnostic("warn", "mic", "Silent re-prime failed", {
-						name: (error as { name?: string } | null)?.name ?? "unknown",
+
+			const prime = () => {
+				void navigator.mediaDevices
+					.getUserMedia({ audio: true, video: false })
+					.then((stream) => {
+						stream.getTracks().forEach((track) => track.stop());
+						void refresh();
+					})
+					.catch((error: unknown) => {
+						logDiagnostic("warn", "mic", "Silent re-prime failed", {
+							name: (error as { name?: string } | null)?.name ?? "unknown",
+						});
+						// Access we had is gone: revoked in System Settings, or
+						// the grant no longer matches this bundle after an
+						// update. Say which, rather than silently offering the
+						// button again.
+						if (isPermissionDenial(error)) {
+							setHasPermission(false);
+							rememberGrant(false);
+							setErrorMessage(permissionDeniedMessage(true));
+						}
 					});
-					// Access we had is gone: revoked in System Settings, or the
-					// grant no longer matches this bundle after an update. Say
-					// which, rather than silently offering the button again.
-					if (isPermissionDenial(error)) {
-						setHasPermission(false);
-						rememberGrant(false);
-						setErrorMessage(permissionDeniedMessage(true));
-					}
-				});
+			};
+
+			if (document.visibilityState === "visible") {
+				prime();
+			} else {
+				const onVisible = () => {
+					if (document.visibilityState !== "visible") return;
+					stopWaitingForVisibility?.();
+					prime();
+				};
+				stopWaitingForVisibility = () => {
+					document.removeEventListener("visibilitychange", onVisible);
+					stopWaitingForVisibility = undefined;
+				};
+				document.addEventListener("visibilitychange", onVisible);
+			}
 		}
 
 		void detectMicrophonePermission().then((granted) => {
@@ -346,6 +376,7 @@ export function useMicrophoneDevices(): UseMicrophoneDevicesResult {
 				"devicechange",
 				handleDeviceChange,
 			);
+			stopWaitingForVisibility?.();
 		};
 	}, [refresh]);
 

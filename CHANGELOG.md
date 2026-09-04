@@ -23,6 +23,14 @@ publish a tag with no matching section.
   `tccutil reset Microphone io.github.sudsarkar13.loudio`. This is the last
   time it should be necessary.
 
+- **A microphone request made while the window was hidden could sit unanswered
+  for close to a minute.** Capture requested with the window off screen does
+  not fail, it parks until the window is shown — one such request in the
+  diagnostic log took 45.5 seconds, against 0.08–0.29 seconds for every request
+  made with the window visible. The startup permission check now waits for the
+  window rather than issuing a request that stalls, which matters most straight
+  after an update, when Loudio relaunches into the background.
+
 ### 🧹 Changed
 - The certificate is self-signed and free, so Gatekeeper is unaffected: first
   launch still needs right-click → Open. Removing that warning needs a paid
