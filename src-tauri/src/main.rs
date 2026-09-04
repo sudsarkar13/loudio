@@ -159,6 +159,15 @@ fn main() {
             #[cfg(debug_assertions)]
             commands::agent_bridge_publish_state,
         ])
-        .run(tauri::generate_context!())
-        .expect("error while running tauri application");
+        .build(tauri::generate_context!())
+        .expect("error while building tauri application")
+        .run(|_app_handle, _event| {
+            // Delete the bridge handshake on the way out. A stale file naming a
+            // dead port is worse than no file: an agent reads it, connects to
+            // nothing, and reports the app as broken rather than as not running.
+            #[cfg(debug_assertions)]
+            if matches!(_event, tauri::RunEvent::Exit) {
+                crate::agent_bridge::remove_handshake(_app_handle);
+            }
+        });
 }

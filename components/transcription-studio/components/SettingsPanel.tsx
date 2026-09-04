@@ -1,3 +1,4 @@
+import { useEffect, useState } from "react";
 import type { ChangeEvent, Dispatch, SetStateAction } from "react";
 import { Settings2 } from "lucide-react";
 import type { AppSettings, RuntimeProfile } from "@/lib/types";
@@ -26,13 +27,26 @@ interface SettingsPanelProps {
 }
 
 /**
+ * Neutral hint used for the first render.
+ *
+ * Rendered on both sides before the platform is known, so server and client
+ * agree. See getEnginePathPlaceholder.
+ */
+const NEUTRAL_ENGINE_PLACEHOLDER = "/usr/local/bin/whisper-cli";
+
+/**
  * Hint the engine path for the platform actually running.
  *
  * The Homebrew prefix only exists on macOS, so showing it to a Linux user
  * points them at a path that can never resolve.
+ *
+ * Must only be called after mount. Node 18+ defines `navigator`, so during the
+ * prerender this does not fall into the "unknown platform" branch — it reports
+ * `Node.js/xx`, matches neither mac nor win, and silently prerenders the Linux
+ * path. On a Mac that produced a hydration mismatch on every launch.
  */
 function getEnginePathPlaceholder(): string {
-	if (typeof navigator === "undefined") return "/usr/local/bin/whisper-cli";
+	if (typeof navigator === "undefined") return NEUTRAL_ENGINE_PLACEHOLDER;
 	const agent = navigator.userAgent.toLowerCase();
 	if (agent.includes("mac")) return "/opt/homebrew/bin/whisper-cli";
 	if (agent.includes("win")) return "C:\\Program Files\\whisper\\whisper-cli.exe";
@@ -54,7 +68,12 @@ export function SettingsPanel({
 	onRequestMicrophonePermission,
 	onRefreshMicrophoneDevices,
 }: SettingsPanelProps) {
-	const enginePathPlaceholder = getEnginePathPlaceholder();
+	const [enginePathPlaceholder, setEnginePathPlaceholder] = useState<string>(
+		NEUTRAL_ENGINE_PLACEHOLDER,
+	);
+	useEffect(() => {
+		setEnginePathPlaceholder(getEnginePathPlaceholder());
+	}, []);
 	const isTranslating = settings.task === "translate";
 	// "auto" and English are produced by Whisper itself, so neither downloads a
 	// translation model.
