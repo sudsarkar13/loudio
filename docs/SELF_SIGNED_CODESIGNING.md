@@ -29,10 +29,15 @@ what happened between v1.0.4 and v1.0.5.
 With a certificate, the requirement names the certificate instead:
 
 ```
-# designated => identifier "io.github.sudsarkar13.loudio" and certificate leaf = H"..."
+# designated => identifier "io.github.sudsarkar13.loudio" and certificate root = H"d56cf145..."
 ```
 
 The certificate does not change between builds, so the grant survives.
+
+`root` rather than `leaf` because a self-signed certificate is the only one in
+its chain, and so is its own root. A Developer ID certificate would produce
+`anchor apple generic` and a leaf clause instead. Either pins the signature to
+a certificate, which is the property that matters.
 
 | | Ad-hoc (before) | Self-signed (now) | Developer ID (USD 99/yr) |
 | :-- | :-- | :-- | :-- |

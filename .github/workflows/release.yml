@@ -533,12 +533,18 @@ jobs:
               | grep 'designated' || true)"
             echo "  $requirement"
 
+            # `certificate root` is what a self-signed certificate produces:
+            # it is the only certificate in the chain, so it is both leaf and
+            # root, and codesign names it root. A Developer ID certificate
+            # produces `anchor apple generic` plus a leaf clause instead. All
+            # three pin the signature to a certificate, which is the property
+            # that matters; only a bare `cdhash` does not.
             case "$requirement" in
-              *"certificate leaf"*|*"anchor apple generic"*)
+              *"certificate root"*|*"certificate leaf"*|*"anchor apple generic"*)
                 echo "  Requirement is tied to the certificate — grants survive updates."
                 ;;
               *)
-                echo "::error::The designated requirement is not tied to the"
+                echo "::error::The designated requirement is not tied to a"
                 echo "::error::signing certificate, so macOS will drop the"
                 echo "::error::microphone permission on every update. Check that"
                 echo "::error::APPLE_SIGNING_IDENTITY names a real certificate"
