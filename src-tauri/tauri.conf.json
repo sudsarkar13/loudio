@@ -61,7 +61,7 @@
 		"homepage": "https://github.com/sudsarkar13/loudio",
 		"license": "MIT",
 		"category": "Productivity",
-		"copyright": "© 2026 Sudeepta Sarkar",
+		"copyright": "\u00a9 2026 Sudeepta Sarkar",
 		"shortDescription": "Offline transcription studio for audio files and microphone recordings",
 		"longDescription": "Loudio turns speech into text entirely on your own machine. Audio never leaves your computer: transcription runs locally through whisper.cpp, with an OpenAI Whisper Python runtime as a fallback, so the app keeps working without a network connection once its model is downloaded.\nRecord from any microphone and transcribe automatically when you stop, or transcribe existing MP3, WAV, M4A, FLAC, AAC and OGG files. Runtime profiles let you trade speed against accuracy, transcripts stream in live with optional timestamps, and a built-in readiness wizard installs the FFmpeg and Whisper dependencies Loudio needs.",
 		"linux": {
@@ -76,6 +76,20 @@
 					"/usr/share/metainfo/io.github.sudsarkar13.loudio.metainfo.xml": "appstream/io.github.sudsarkar13.loudio.metainfo.xml",
 					"/usr/share/doc/loudio/copyright": "appstream/copyright"
 				}
+			}
+		},
+		"createUpdaterArtifacts": true
+	},
+	"plugins": {
+		"updater": {
+			"active": true,
+			"pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDdEMjE3MjFGMjYyRjVGRTMKUldUalh5OG1IM0loZmUwaVlkVDNRbGdBNUJZUE5vRnN2czZtb21walAzcWNYZXdwaWJqbDFiamsK",
+			"dialog": false,
+			"endpoints": [
+				"https://github.com/sudsarkar13/loudio/releases/latest/download/latest.json"
+			],
+			"windows": {
+				"installMode": "passive"
 			}
 		}
 	}

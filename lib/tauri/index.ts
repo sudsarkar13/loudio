@@ -16,6 +16,7 @@ export {
 	closeReadinessWindow,
 	deleteMicrophoneRecording,
 	getCurrentRecordingsOutputDir,
+	getInstallInfo,
 	getMicrophoneRecordingPlaybackUrl,
 	getPersistedSettings,
 	getRecordingsDiskUsage,
@@ -60,6 +61,8 @@ export {
 
 export type {
 	CompactWindowAnchor,
+	InstallFlavor,
+	InstallInfo,
 	MicrophoneTranscriptionPayload,
 	ReadinessActionKind,
 	ReadinessCheck,

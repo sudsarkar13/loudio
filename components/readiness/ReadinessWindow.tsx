@@ -1,11 +1,13 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
-import { Cpu, RefreshCw, RotateCcw, ShieldCheck } from "lucide-react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { ArrowUpCircle, Cpu, RefreshCw, RotateCcw, ShieldCheck } from "lucide-react";
 
 import { useSystemReadinessWizard } from "@/components/transcription-studio/hooks/useSystemReadinessWizard";
 import { ReadinessCheckCard } from "@/components/readiness/ReadinessCheckCard";
 import { ReadinessStatusRing } from "@/components/readiness/ReadinessStatusRing";
+import { AppUpdateCard } from "@/components/readiness/AppUpdateCard";
+import { useAppUpdate } from "@/components/readiness/useAppUpdate";
 import {
 	SEVERITY_BLURBS,
 	SEVERITY_ORDER,
@@ -66,6 +68,18 @@ export function ReadinessWindow() {
 		resetSkips,
 		enterApp,
 	} = useSystemReadinessWizard();
+
+	const appUpdate = useAppUpdate();
+
+	// Checked once when the window opens. This is the first window a user sees,
+	// and its whole job is to report on the system — including whether Loudio
+	// itself is current. Nothing installs without a click.
+	const hasCheckedRef = useRef<boolean>(false);
+	useEffect(() => {
+		if (hasCheckedRef.current || !appUpdate.canSelfUpdate) return;
+		hasCheckedRef.current = true;
+		void appUpdate.checkForUpdate();
+	}, [appUpdate]);
 
 	const isInstalling = installingId !== null || stage === "installing";
 	const summary = useMemo(
@@ -204,8 +218,17 @@ export function ReadinessWindow() {
 					<div className="rw-hero-copy">
 						<h2>{summary.headline}</h2>
 						<p>{summary.subhead}</p>
+						{summary.updatable > 0 ?
+							<span className="rw-hero-badge">
+								<ArrowUpCircle size={13} aria-hidden="true" />
+								{summary.updatable} component
+								{summary.updatable === 1 ? "" : "s"} can be updated
+							</span>
+						:	null}
 					</div>
 				</section>
+
+				<AppUpdateCard {...appUpdate} />
 
 				{isDetecting ?
 					<div className="rw-skeleton-list" aria-hidden="true">

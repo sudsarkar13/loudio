@@ -27,6 +27,10 @@ libc = "0.2"
 # see docs/APPLE_SIGNING.md.
 tauri = { version = "2", features = ["protocol-asset", "tray-icon", "image-png", "macos-private-api"] }
 tauri-plugin-clipboard-manager = "2"
+# In-app updates. `process` supplies the relaunch that has to follow an install.
+# Both are desktop-only; the target filter keeps them off any other platform.
+tauri-plugin-updater = "2"
+tauri-plugin-process = "2"
 tauri-plugin-dialog = "2"
 tauri-plugin-fs = "2"
 tokio = { version = "1", features = ["process", "rt-multi-thread", "macros", "io-util", "sync", "net", "time"] }

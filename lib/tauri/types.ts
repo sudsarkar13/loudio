@@ -69,3 +69,12 @@ export interface ReadinessProgressEvent {
 	done: boolean;
 	error: boolean;
 }
+
+/** How Loudio was installed. Decides whether it may update itself. */
+export type InstallFlavor = "snap" | "flatpak" | "native";
+
+export interface InstallInfo {
+	flavor: InstallFlavor;
+	label: string;
+	enginesAreBundled: boolean;
+}

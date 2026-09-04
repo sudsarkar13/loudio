@@ -1,7 +1,7 @@
 {
 	"$schema": "../gen/schemas/desktop-schema.json",
 	"identifier": "readiness",
-	"description": "Capabilities for the System Readiness window. Deliberately narrower than the main window's: readiness installs dependencies and reports on them, so it needs no clipboard, no filesystem writes and no compact-mode window geometry controls.",
+	"description": "Capabilities for the System Readiness window. Narrower than the main window's: readiness reports on dependencies and applies updates, so it needs no clipboard and no compact-mode window geometry controls. It does need the updater and a restart, which is the one thing only this window does.",
 	"windows": [
 		"readiness"
 	],
@@ -13,6 +13,8 @@
 		"core:window:allow-minimize",
 		"core:window:allow-unminimize",
 		"core:window:allow-start-dragging",
-		"core:app:allow-default-window-icon"
+		"core:app:allow-default-window-icon",
+		"updater:default",
+		"process:allow-restart"
 	]
 }

@@ -72,6 +72,12 @@ fn main() {
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_fs::init())
         .plugin(tauri_plugin_clipboard_manager::init())
+        // Updates, and the relaunch that has to follow one. Registered
+        // unconditionally; whether an update is *offered* is decided at runtime
+        // from the install flavour, since a Snap or Flatpak cannot replace its
+        // own read-only mount.
+        .plugin(tauri_plugin_updater::Builder::new().build())
+        .plugin(tauri_plugin_process::init())
         .setup(|app| {
             // Runs before the webview exists, which is the point. The frontend
             // persists its default settings as soon as it mounts, so anything

@@ -14,6 +14,7 @@ import type {
 import { invokeCommand, isTauriRuntime } from "@/lib/tauri/runtime";
 import type {
 	MicrophoneTranscriptionPayload,
+	InstallInfo,
 	ReadinessCheck,
 	ReadinessReport,
 } from "@/lib/tauri/types";
@@ -306,4 +307,18 @@ export async function closeReadinessWindow(): Promise<void> {
 export async function notifyReadinessChanged(): Promise<void> {
 	if (!isTauriRuntime()) return;
 	await invokeCommand<void>("notify_readiness_changed");
+}
+
+/**
+ * How Loudio was installed.
+ *
+ * Drives whether an in-app update may be offered at all: a Snap or Flatpak
+ * lives on a read-only mount its own process cannot replace, and those stores
+ * update it themselves.
+ */
+export async function getInstallInfo(): Promise<InstallInfo> {
+	if (!isTauriRuntime()) {
+		return { flavor: "native", label: "Web preview", enginesAreBundled: false };
+	}
+	return invokeCommand<InstallInfo>("get_install_info");
 }

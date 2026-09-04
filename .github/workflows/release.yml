@@ -207,6 +207,12 @@ jobs:
         run: yarn typecheck
 
       - name: Build .deb bundle
+        # The signing key is what produces the .sig files the updater needs.
+        # Without it the build still succeeds and simply ships no update path,
+        # which the publish job then fails on rather than shipping silently.
+        env:
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
         run: yarn tauri build --bundles deb
 
       - name: Verify artifact versions
@@ -354,9 +360,13 @@ jobs:
         if: steps.signing.outputs.enabled != 'true'
         env:
           APPLE_SIGNING_IDENTITY: "-"
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
         run: |
           unset APPLE_CERTIFICATE APPLE_CERTIFICATE_PASSWORD
-          yarn tauri build --bundles dmg
+          # `app` alongside `dmg`: the updater installs the .app.tar.gz emitted
+          # for the app target, never the .dmg.
+          yarn tauri build --bundles app,dmg
 
       - name: Verify the .app carries a signature
         if: steps.signing.outputs.enabled != 'true'
@@ -382,7 +392,9 @@ jobs:
           APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
           APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
           APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
-        run: yarn tauri build --bundles dmg
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+        run: yarn tauri build --bundles app,dmg
 
       - name: Notarize and staple
         if: steps.signing.outputs.enabled == 'true'
@@ -444,7 +456,10 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p dist
-          find staging -type f \( -name '*.deb' -o -name '*.dmg' \) \
+          # .tar.gz and .sig are the updater's artifacts; without them the
+          # release publishes but no installed copy can ever update itself.
+          find staging -type f \( -name '*.deb' -o -name '*.dmg' \
+            -o -name '*.tar.gz' -o -name '*.sig' \) \
             -exec mv -n {} dist/ \;
           ls -la dist
           if [ -z "$(ls -A dist)" ]; then
@@ -458,6 +473,18 @@ jobs:
           set -euo pipefail
           sha256sum * > SHA256SUMS
           cat SHA256SUMS
+
+      - name: Compose the updater manifest
+        env:
+          VERSION: ${{ needs.validate.outputs.version }}
+          TAG: ${{ needs.validate.outputs.tag }}
+          REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          bash .github/scripts/compose-latest-json.sh \
+            "$VERSION" dist \
+            "https://github.com/$REPO/releases/download/$TAG" > dist/latest.json
+          cat dist/latest.json
 
       - name: Compose release body
         env:

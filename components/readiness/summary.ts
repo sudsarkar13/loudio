@@ -15,6 +15,8 @@ export interface ReadinessSummary {
 	satisfied: number;
 	total: number;
 	blocking: number;
+	/** Components with a newer stable release on offer. */
+	updatable: number;
 }
 
 /** Counted as done for the purposes of "can Loudio run". */
@@ -58,6 +60,7 @@ export function summarize(
 			satisfied: 0,
 			total: 0,
 			blocking: 0,
+			updatable: 0,
 		};
 	}
 
@@ -73,11 +76,16 @@ export function summarize(
 			satisfied: 0,
 			total: 0,
 			blocking: 0,
+			updatable: 0,
 		};
 	}
 
 	const percent = Math.round((satisfied / total) * 100);
 	const ringLabel = `${satisfied}/${total}`;
+
+	// Counted across every severity, not just required: an available update to a
+	// recommended package is still worth surfacing, and it never blocks.
+	const updatable = report.items.filter((item) => item.available).length;
 
 	if (isInstalling) {
 		return {
@@ -91,6 +99,7 @@ export function summarize(
 			satisfied,
 			total,
 			blocking,
+			updatable,
 		};
 	}
 
@@ -106,6 +115,7 @@ export function summarize(
 			satisfied,
 			total,
 			blocking,
+			updatable,
 		};
 	}
 
@@ -127,6 +137,7 @@ export function summarize(
 		satisfied,
 		total,
 		blocking,
+		updatable,
 	};
 }
 

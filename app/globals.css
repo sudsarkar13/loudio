@@ -1561,7 +1561,7 @@ summary:focus-visible {
 	border-radius: 14px;
 	padding: 0;
 	display: grid;
-	grid-template-columns: auto minmax(0, 1fr) auto;
+	grid-template-columns: auto minmax(0, 1fr);
 	align-items: start;
 	gap: 0;
 	overflow: hidden;
@@ -1706,7 +1706,7 @@ summary:focus-visible {
 	display: flex;
 	flex-direction: column;
 	gap: 0.55rem;
-	padding: 0.95rem 1rem 0.95rem 0.2rem;
+	padding: 0.9rem 1rem 0.55rem 0.2rem;
 }
 
 .readiness-card-head {
@@ -1763,13 +1763,20 @@ summary:focus-visible {
 	margin-top: 0.15rem;
 }
 
+/* Across the base of the card rather than in a third column: at half width
+   there is no room for a column of buttons beside the text. */
 .readiness-card-actions {
+	grid-column: 1 / -1;
 	display: flex;
-	flex-direction: column;
-	align-items: stretch;
+	flex-wrap: wrap;
+	align-items: center;
 	gap: 0.4rem;
-	padding: 0.95rem 1rem 0.95rem 0.75rem;
-	min-width: 11.5rem;
+	padding: 0 1rem 0.9rem 1rem;
+	margin-top: 0.15rem;
+}
+
+.readiness-card-actions:empty {
+	display: none;
 }
 
 .readiness-card-actions .btn {
@@ -1788,18 +1795,7 @@ summary:focus-visible {
 	padding: 0 1rem 0.85rem 1rem;
 }
 
-@media (max-width: 720px) {
-	.readiness-card {
-		grid-template-columns: auto minmax(0, 1fr);
-	}
-	.readiness-card-actions {
-		grid-column: 2 / -1;
-		flex-direction: row;
-		flex-wrap: wrap;
-		padding-top: 0;
-		min-width: 0;
-	}
-}
+
 
 .readiness-cmd-toggle {
 	display: inline-flex;
@@ -2690,10 +2686,15 @@ summary:focus-visible {
 	color: var(--text-faint);
 }
 
+/* Two across on a default-width window, one when narrow.
+   `auto-fill` + `minmax` rather than a media query: the cards are half-width
+   while the viewport is not, so a viewport query would never fire at the point
+   the card actually needs to reflow. */
 .rw-group-items {
-	display: flex;
-	flex-direction: column;
-	gap: 0.7rem;
+	display: grid;
+	grid-template-columns: repeat(auto-fill, minmax(21rem, 1fr));
+	gap: 0.75rem;
+	align-items: start;
 }
 
 /* Loading skeleton ------------------------------------------ */
@@ -2824,4 +2825,206 @@ summary:focus-visible {
 	color: #f7d79a;
 	background: rgba(210, 153, 34, 0.16);
 	border-color: rgba(210, 153, 34, 0.5);
+}
+
+/* -----------------------------------------------------------
+   Application update card (readiness window)
+   ----------------------------------------------------------- */
+
+.upd-card {
+	display: grid;
+	grid-template-columns: auto minmax(0, 1fr) auto;
+	align-items: center;
+	gap: 1rem;
+	padding: 0.95rem 1.1rem;
+	border-radius: 14px;
+	border: 1px solid var(--border-soft);
+	background: linear-gradient(180deg, var(--panel), var(--bg-elev));
+}
+
+.upd-card-attention {
+	border-color: rgba(47, 129, 247, 0.4);
+	background:
+		radial-gradient(80% 160% at 0% 50%, rgba(47, 129, 247, 0.14), transparent 70%),
+		linear-gradient(180deg, var(--panel), var(--bg-elev));
+}
+
+.upd-card-blocked {
+	border-color: rgba(248, 81, 73, 0.34);
+}
+
+.upd-mark {
+	display: grid;
+	place-items: center;
+	width: 58px;
+	flex: none;
+}
+
+.upd-glyph {
+	display: grid;
+	place-items: center;
+	width: 40px;
+	height: 40px;
+	border-radius: 12px;
+	color: var(--text-muted);
+	background: var(--panel-3);
+	border: 1px solid var(--border-soft);
+}
+
+.upd-glyph-attention {
+	color: #cfe3ff;
+	background: rgba(47, 129, 247, 0.18);
+	border-color: rgba(47, 129, 247, 0.4);
+}
+
+.upd-glyph-blocked {
+	color: #ffb4ae;
+	background: rgba(248, 81, 73, 0.14);
+	border-color: rgba(248, 81, 73, 0.34);
+}
+
+.upd-head {
+	display: flex;
+	align-items: baseline;
+	gap: 0.5rem;
+	flex-wrap: wrap;
+}
+
+.upd-head h3 {
+	margin: 0;
+	font-size: 0.95rem;
+	font-weight: 620;
+	letter-spacing: -0.01em;
+}
+
+.upd-version {
+	font-size: 0.72rem;
+	font-variant-numeric: tabular-nums;
+	color: var(--text-faint);
+	padding: 0.1rem 0.4rem;
+	border-radius: 999px;
+	border: 1px solid var(--border-soft);
+	background: var(--panel-3);
+}
+
+.upd-detail {
+	margin: 0.25rem 0 0;
+	font-size: 0.8rem;
+	line-height: 1.45;
+	color: var(--text-muted);
+}
+
+.upd-notes {
+	margin-top: 0.5rem;
+	font-size: 0.78rem;
+	color: var(--text-muted);
+}
+
+.upd-notes summary {
+	cursor: pointer;
+	color: var(--focus);
+}
+
+.upd-notes pre {
+	margin: 0.4rem 0 0;
+	padding: 0.6rem 0.7rem;
+	max-height: 11rem;
+	overflow: auto;
+	white-space: pre-wrap;
+	border-radius: 8px;
+	background: var(--bg);
+	border: 1px solid var(--border-soft);
+	font-size: 0.75rem;
+}
+
+.upd-progress {
+	margin-top: 0.6rem;
+	height: 6px;
+	border-radius: 999px;
+	background: rgba(255, 255, 255, 0.08);
+	overflow: hidden;
+}
+
+.upd-progress-fill {
+	height: 100%;
+	border-radius: 999px;
+	background: linear-gradient(90deg, var(--focus), #7cb8ff);
+	transition: width 240ms ease;
+}
+
+/* A server that sends no content-length gives us no percentage to show, so the
+   bar sweeps instead of lying about progress. */
+.upd-progress-fill-indeterminate {
+	width: 38%;
+	animation: upd-sweep 1.25s ease-in-out infinite;
+}
+
+@keyframes upd-sweep {
+	from {
+		transform: translateX(-110%);
+	}
+	to {
+		transform: translateX(320%);
+	}
+}
+
+.upd-actions {
+	display: flex;
+	align-items: center;
+	gap: 0.5rem;
+}
+
+/* The lemniscate "working" mark ------------------------------ */
+
+.upd-pulse-track {
+	stroke: rgba(255, 255, 255, 0.09);
+}
+
+.upd-pulse-run {
+	stroke: var(--focus);
+	/* One short dash chasing the full circuit. The dasharray is the visible
+	   run plus a gap longer than the path, so exactly one segment is ever
+	   drawn and the offset animation carries it around. */
+	stroke-dasharray: 26 300;
+	filter: drop-shadow(0 0 5px rgba(47, 129, 247, 0.55));
+}
+
+.upd-pulse-active .upd-pulse-run {
+	animation: upd-trace 1.6s linear infinite;
+}
+
+@keyframes upd-trace {
+	from {
+		stroke-dashoffset: 326;
+	}
+	to {
+		stroke-dashoffset: 0;
+	}
+}
+
+/* Update badge on the readiness hero -------------------------- */
+
+.rw-hero-badge {
+	display: inline-flex;
+	align-items: center;
+	gap: 0.35rem;
+	margin-top: 0.6rem;
+	padding: 0.24rem 0.6rem;
+	border-radius: 999px;
+	font-size: 0.75rem;
+	font-weight: 550;
+	color: #cfe3ff;
+	background: rgba(47, 129, 247, 0.16);
+	border: 1px solid rgba(47, 129, 247, 0.4);
+}
+
+@media (prefers-reduced-motion: reduce) {
+	.upd-pulse-active .upd-pulse-run,
+	.upd-progress-fill-indeterminate {
+		animation: none;
+	}
+	.upd-pulse-run {
+		stroke-dasharray: none;
+		opacity: 0.7;
+	}
 }
