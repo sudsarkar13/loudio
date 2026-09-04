@@ -364,6 +364,14 @@ jobs:
           APPLE_SIGNING_IDENTITY: "-"
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+          # tauri-bundler skips bundle_dmg.sh's Finder AppleScript whenever `CI`
+          # is set, which silently drops the .dmg window layout — the app and
+          # the Applications folder then land in Finder's default alphabetical
+          # arrangement instead of side by side with a drag arrow between them.
+          # v1.0.4 and v1.0.5 both shipped like that. This is the bundler's own
+          # escape hatch; the verify step below fails the build if the layout
+          # still does not come out.
+          TAURI_BUNDLER_DMG_IGNORE_CI: "true"
         run: |
           unset APPLE_CERTIFICATE APPLE_CERTIFICATE_PASSWORD
           # `app` alongside `dmg`: the updater installs the .app.tar.gz emitted
@@ -396,6 +404,8 @@ jobs:
           APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+          # See the ad-hoc step above.
+          TAURI_BUNDLER_DMG_IGNORE_CI: "true"
         run: yarn tauri build --bundles app,dmg
 
       - name: Notarize and staple
@@ -427,6 +437,11 @@ jobs:
           EXPECTED_VERSION: ${{ needs.validate.outputs.version }}
         run: |
           bash .github/scripts/verify-artifacts.sh "$EXPECTED_VERSION" \
+            src-tauri/target/release/bundle/dmg
+
+      - name: Verify the .dmg carries its Finder layout
+        run: |
+          bash .github/scripts/verify-dmg-layout.sh \
             src-tauri/target/release/bundle/dmg
 
       # The bundler names the updater archive `Loudio.app.tar.gz` with no

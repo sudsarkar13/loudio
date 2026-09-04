@@ -78,6 +78,49 @@ function isPermissionDenial(error: unknown): boolean {
 	return name === "NotAllowedError" || name === "SecurityError";
 }
 
+/**
+ * What to tell the user when the OS refuses capture.
+ *
+ * The raw `NotAllowedError` text reads as though the user had just clicked
+ * Deny, which is misleading in the case that actually produces it most often:
+ * an update. macOS keys a microphone grant to the app's code signature, and
+ * these builds are ad-hoc signed with no stable Developer ID, so every new
+ * bundle hashes differently and TCC stops recognising it as the app it
+ * approved. The stale record then denies capture outright instead of
+ * re-prompting, which is why access disappears with no dialog after an
+ * in-app update.
+ *
+ * `hadGrant` distinguishes the two cases: access we previously observed and
+ * have now lost points at that, while a first-ever denial is just a denial.
+ */
+function permissionDeniedMessage(hadGrant: boolean): string {
+	const isMac =
+		typeof navigator !== "undefined" && /Mac/i.test(navigator.userAgent);
+
+	if (!hadGrant) {
+		return (
+			"Microphone access was denied. Allow it for Loudio in your system " +
+			"privacy settings, then press Refresh."
+		);
+	}
+
+	if (isMac) {
+		return (
+			"macOS is no longer honouring the microphone permission for this " +
+			"copy of Loudio. Updating replaces the app, and macOS ties the " +
+			"permission to the exact copy it approved. Re-enable Loudio under " +
+			"System Settings \u203a Privacy & Security \u203a Microphone, or run " +
+			"`tccutil reset Microphone io.github.sudsarkar13.loudio` in Terminal, " +
+			"then relaunch Loudio."
+		);
+	}
+
+	return (
+		"Microphone access is no longer being granted. Re-allow it for Loudio " +
+		"in your desktop privacy settings, then press Refresh."
+	);
+}
+
 function isAudioInput(device: MediaDeviceInfo): boolean {
 	return device.kind === "audioinput";
 }
@@ -222,9 +265,10 @@ export function useMicrophoneDevices(): UseMicrophoneDevicesResult {
 
 			if (denied) {
 				// A real denial: forget the grant so the button comes back.
+				const hadGrant = readRememberedGrant();
 				setHasPermission(false);
 				rememberGrant(false);
-				setErrorMessage(`Microphone permission denied: ${String(error)}`);
+				setErrorMessage(permissionDeniedMessage(hadGrant));
 			} else {
 				// The device failed, not the permission. Report it without
 				// claiming access was revoked.
@@ -268,10 +312,13 @@ export function useMicrophoneDevices(): UseMicrophoneDevicesResult {
 					logDiagnostic("warn", "mic", "Silent re-prime failed", {
 						name: (error as { name?: string } | null)?.name ?? "unknown",
 					});
-					// Revoked in System Settings since we last recorded a grant.
+					// Access we had is gone: revoked in System Settings, or the
+					// grant no longer matches this bundle after an update. Say
+					// which, rather than silently offering the button again.
 					if (isPermissionDenial(error)) {
 						setHasPermission(false);
 						rememberGrant(false);
+						setErrorMessage(permissionDeniedMessage(true));
 					}
 				});
 		}

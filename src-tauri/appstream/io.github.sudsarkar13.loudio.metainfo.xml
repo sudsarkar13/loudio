@@ -113,6 +113,20 @@
   </screenshots>
 
   <releases>
+    <release version="1.0.6" date="2026-09-04">
+      <url>https://github.com/sudsarkar13/loudio/releases/tag/v1.0.6</url>
+      <description>
+        <p>
+          Repairs three faults that only appeared once Loudio was installed
+          rather than run from a terminal.
+        </p>
+        <ul>
+          <li>Restore the macOS disk image window, so the app can be dragged onto Applications again</li>
+          <li>Detect Homebrew updates again in the installed app, not only under a development shell</li>
+          <li>Explain a microphone permission that an update invalidated, instead of reporting a raw error</li>
+        </ul>
+      </description>
+    </release>
     <release version="1.0.5" date="2026-09-04">
       <url>https://github.com/sudsarkar13/loudio/releases/tag/v1.0.5</url>
       <description>

@@ -283,7 +283,15 @@ async fn whisper_cpp_installed_version(bin: &str) -> Option<String> {
 /// install a pre-release build behind the user's back.
 async fn stable_candidate_for(snap: &str, formula: &str, apt: Option<&str>) -> Option<String> {
     if cfg!(target_os = "macos") {
-        let output = Command::new("brew")
+        // `brew` by bare name only resolves when the process inherited a login
+        // shell's PATH. A packaged app launched from Finder or the Dock gets
+        // launchd's minimal `/usr/bin:/bin:/usr/sbin:/sbin`, which contains
+        // neither `/opt/homebrew/bin` nor `/usr/local/bin`, so the spawn failed
+        // with ENOENT and `.ok()?` turned that into "no update available".
+        // The failure was invisible: every check simply stopped advertising
+        // updates once Loudio was installed rather than run from a terminal.
+        let brew = crate::binaries::detect_brew_bin().await?;
+        let output = Command::new(brew)
             .args(["info", "--json=v2", formula])
             .output()
             .await

@@ -1,65 +1,35 @@
-# v1.0.5 — Stable Release
+# v1.0.6 — Stable Release
 
-Speech is transcribed in the language it was spoken, System Readiness moves into
-its own window, and Loudio can now update itself.
+Three faults that only appeared in an installed copy of Loudio. Each one was
+invisible to a build run from a terminal, which is why none of them surfaced
+before release.
 
 ## What's Changed
 
 ### 🐛 Fixed Bugs & Issues
 
-- **Anything you said in a language other than English came back as English.**
-  whisper.cpp defaults its language flag to `en` rather than auto-detect, and
-  "Auto Detect" was never actually passed to the engine — so Hindi was rewritten
-  as English prose, which looked like a bad transcription rather than a wrong
-  setting. The language you pick, auto included, now always reaches the engine.
+- **The macOS disk image opened as a plain list of files**, with nothing to drag
+  the app onto. The window layout — its size, the icon sizes, and the app sitting
+  beside the Applications folder — is written by Finder into a `.DS_Store`, and
+  the bundler skips that step whenever it detects a CI environment. It printed no
+  warning and failed nothing, so v1.0.4 and v1.0.5 both shipped an image with no
+  layout at all. The release now opts back in, and refuses to publish an image
+  whose layout is missing rather than letting another one through.
 
-- **Loudio asked for microphone access on every single launch.** The webview
-  cannot see an OS permission grant it already holds: its permission query is
-  unimplemented, and device names stay hidden until capture succeeds *in that
-  session*. Both signals therefore read as "denied" on every cold start. The
-  grant is remembered now, and quietly re-established when the app opens.
+- **The installed app stopped reporting available FFmpeg and whisper.cpp
+  updates.** Readiness looked up `brew` by name, but an app launched from Finder
+  inherits a minimal `PATH` that contains neither Homebrew location. The lookup
+  failed with "not found", which was read as "nothing to update" — so the badge
+  never appeared once Loudio was installed rather than run under a development
+  shell. Homebrew is now found by path.
 
-- **The compact window drifted off screen after a reload.** Its position was
-  saved in physical pixels and restored as logical ones, so on a Retina display
-  every reload moved it further out until it vanished.
+- **The microphone stopped working after an in-app update**, with no permission
+  prompt and only a raw error to go on. macOS ties a microphone grant to the
+  app's code signature, so replacing the app invalidates it, and capture is then
+  denied outright instead of being re-requested. Loudio now says what happened
+  and how to restore access.
 
-- **Recordings could capture the same speech twice, or produce a file that would
-  not play.** A second recorder could start before the first had finished
-  opening — two streams writing one buffer. The duplicated audio and the
-  unplayable fragment were one bug seen from two sides.
-
-- **The Python environment could be built for the wrong processor.** On Apple
-  Silicon a bare `python3` resolved to the system interpreter under a packaged
-  app's minimal `PATH`, producing an Intel environment on an ARM machine.
-
-- **Translated text dropped whole sentences.** Devanagari sentence endings were
-  not recognised, so a paragraph was translated as one block and truncated.
-
-### 🚀 Highlights & Features
-
-- **System Readiness is its own window.** It used to cover the app, which
-  conflated the studio you work in with the preflight deciding whether the
-  studio can run at all. Installing a dependency can take minutes; the main
-  window now stays usable throughout. Reach it from the status indicator, from
-  **Help → System Readiness…**, or automatically when something needs attention.
-
-- **Loudio updates itself.** New releases are detected, downloaded and installed
-  from inside the app, which then restarts. Nothing installs without your click.
-  Snap and Flatpak builds show their version and leave updating to the store,
-  which is the only thing that can update them.
-
-- **Translate into a language you choose.** whisper.cpp can only translate *to*
-  English, so a local NLLB-200 model now handles everything else. Transcribe
-  keeps the spoken language; Translate targets English by default, or whichever
-  language you pick. You choose the model size — roughly 3 GB or 7 GB.
-
-- **Large downloads refuse to fill your disk.** Model downloads check free space
-  first and keep a 2 GB reserve.
-
-- **Diagnostic logging.** Microphone and window events are written to a rotating
-  log, reachable from **Help → Open Diagnostic Logs…**, so an intermittent
-  failure can be diagnosed after the fact instead of reproduced on demand.
-
-### 🧹 Changed
-
-- Updated Next.js from 16.2.9 to 16.3.4.
+  Fully fixing this needs a stable Developer ID signature, which these builds do
+  not yet carry. Until then, access has to be re-granted after each macOS update:
+  re-enable Loudio under **System Settings › Privacy & Security › Microphone**,
+  or run `tccutil reset Microphone io.github.sudsarkar13.loudio` and relaunch.

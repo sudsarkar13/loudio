@@ -6,6 +6,34 @@ publish a tag with no matching section.
 
 ## [Unreleased]
 
+## [v1.0.6] - 2026-09-04
+
+Three faults that only showed up in an installed copy of Loudio, and were
+invisible to a build run from a terminal.
+
+### 🐛 Fixed Bugs & Issues
+- **The macOS disk image opened as a plain list of files.** There was nothing
+  to drag the app onto: the window carried no layout, so Finder arranged its
+  contents alphabetically. The window position, icon sizes and the
+  app-beside-Applications arrangement live in a `.DS_Store` written by
+  `bundle_dmg.sh` through Finder, and the bundler skips that step whenever it
+  sees `CI` set. It reported no warning and failed nothing, so v1.0.4 and
+  v1.0.5 both shipped a disk image with no layout. The release now opts back in
+  and refuses to publish an image whose layout is missing.
+- **The installed app stopped reporting available FFmpeg and whisper.cpp
+  updates.** Readiness invoked `brew` by name, and an app launched from Finder
+  inherits launchd's minimal `PATH`, which contains neither Homebrew prefix. The
+  lookup failed with "not found" and was read as "nothing to update", so the
+  update badge simply never appeared once Loudio was installed rather than run
+  under a development shell. Homebrew is now resolved by path.
+- **The microphone stopped working after an in-app update, with no prompt and a
+  raw error.** macOS ties a microphone grant to the app's code signature, so
+  replacing the bundle invalidates it and capture is denied outright rather than
+  re-requested. Loudio now explains that, and how to restore access, instead of
+  printing `NotAllowedError`. The underlying cause needs a stable Developer ID
+  signature; until then the permission must be re-granted after each macOS
+  update.
+
 ## [v1.0.5] - 2026-09-04
 
 ### 🐛 Fixed Bugs & Issues

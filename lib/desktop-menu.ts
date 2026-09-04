@@ -251,8 +251,8 @@ async function buildMenu(aboutIcon: MenuIcon): Promise<BuiltMenu> {
 				item: {
 					About: {
 						name: "Loudio",
-						version: "1.0.5",
-						shortVersion: "1.0.5",
+						version: "1.0.6",
+						shortVersion: "1.0.6",
 						copyright: "© Sudeepta Sarkar",
 						credits: "Developed by Sudeepta Sarkar",
 						icon: aboutIcon,
