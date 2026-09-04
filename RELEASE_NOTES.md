@@ -1,44 +1,65 @@
-# v1.0.4 — Stable Release
+# v1.0.5 — Stable Release
 
-Compact mode gets its keyboard shortcuts back, settings stop disappearing, and
-Loudio is now packaged for the Snap Store and Flathub.
+Speech is transcribed in the language it was spoken, System Readiness moves into
+its own window, and Loudio can now update itself.
 
 ## What's Changed
 
 ### 🐛 Fixed Bugs & Issues
 
-- **Your settings could be silently reset.** Loudio wrote its default settings to
-  disk as soon as the window appeared, while reading the stored ones waited on
-  the readiness check. Quit before startup finished and the defaults had already
-  replaced everything — including, since v1.0.3, your custom vocabulary and every
-  correction you had taught it. Nothing is written now until the stored settings
-  have been read.
+- **Anything you said in a language other than English came back as English.**
+  whisper.cpp defaults its language flag to `en` rather than auto-detect, and
+  "Auto Detect" was never actually passed to the engine — so Hindi was rewritten
+  as English prose, which looked like a bad transcription rather than a wrong
+  setting. The language you pick, auto included, now always reaches the engine.
 
-- **Keyboard shortcuts were dead in compact mode on Linux.** Menu accelerators
-  belong to the GTK menu bar, and compact mode hides that bar — which took
-  `Ctrl+O`, `Ctrl+Enter`, `Ctrl+K` and `Ctrl+Shift+M` with it. They work again
-  while the bar is hidden.
+- **Loudio asked for microphone access on every single launch.** The webview
+  cannot see an OS permission grant it already holds: its permission query is
+  unimplemented, and device names stay hidden until capture succeeds *in that
+  session*. Both signals therefore read as "denied" on every cold start. The
+  grant is remembered now, and quietly re-established when the app opens.
 
-- **`Ctrl+Q` never worked on Linux.** macOS gets `Cmd+Q` from the system; on
-  Linux the predefined Quit item is given no accelerator at all. It has one now.
+- **The compact window drifted off screen after a reload.** Its position was
+  saved in physical pixels and restored as logical ones, so on a Retina display
+  every reload moved it further out until it vanished.
 
-- **The menu bar flashed whenever a recording started or stopped.** Toggling a
-  recording rebuilt the entire native menu, and re-applying a menu re-shows the
-  bar. It is built once and updated in place.
+- **Recordings could capture the same speech twice, or produce a file that would
+  not play.** A second recorder could start before the first had finished
+  opening — two streams writing one buffer. The duplicated audio and the
+  unplayable fragment were one bug seen from two sides.
 
-- The readiness wizard showed `python3` as your Python version and
-  `app-local venv` as your Whisper version. Both now report the real thing.
+- **The Python environment could be built for the wrong processor.** On Apple
+  Silicon a bare `python3` resolved to the system interpreter under a packaged
+  app's minimal `PATH`, producing an Intel environment on an ARM machine.
+
+- **Translated text dropped whole sentences.** Devanagari sentence endings were
+  not recognised, so a paragraph was translated as one block and truncated.
 
 ### 🚀 Highlights & Features
 
-- **Snap and Flatpak packages.** Both bundle FFmpeg and whisper.cpp, so there is
-  no setup step: install, launch, transcribe. The readiness wizard recognises a
-  sandboxed install and stops offering installs it cannot perform there.
+- **System Readiness is its own window.** It used to cover the app, which
+  conflated the studio you work in with the preflight deciding whether the
+  studio can run at all. Installing a dependency can take minutes; the main
+  window now stays usable throughout. Reach it from the status indicator, from
+  **Help → System Readiness…**, or automatically when something needs attention.
+
+- **Loudio updates itself.** New releases are detected, downloaded and installed
+  from inside the app, which then restarts. Nothing installs without your click.
+  Snap and Flatpak builds show their version and leave updating to the store,
+  which is the only thing that can update them.
+
+- **Translate into a language you choose.** whisper.cpp can only translate *to*
+  English, so a local NLLB-200 model now handles everything else. Transcribe
+  keeps the spoken language; Translate targets English by default, or whichever
+  language you pick. You choose the model size — roughly 3 GB or 7 GB.
+
+- **Large downloads refuse to fill your disk.** Model downloads check free space
+  first and keep a 2 GB reserve.
+
+- **Diagnostic logging.** Microphone and window events are written to a rotating
+  log, reachable from **Help → Open Diagnostic Logs…**, so an intermittent
+  failure can be diagnosed after the fact instead of reproduced on demand.
 
 ### 🧹 Changed
 
-- **The application ID changed to `io.github.sudsarkar13.loudio`.** The previous
-  one claimed a domain this project does not own, which stores reject. Your
-  settings, models, Python environment and recordings move across on first
-  launch — the runtime directory is moved rather than copied, so several
-  gigabytes are not duplicated. The old location is left in place.
+- Updated Next.js from 16.2.9 to 16.3.4.

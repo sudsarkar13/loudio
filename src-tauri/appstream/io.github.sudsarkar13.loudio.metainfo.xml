@@ -113,6 +113,24 @@
   </screenshots>
 
   <releases>
+    <release version="1.0.5" date="2026-09-04">
+      <url>https://github.com/sudsarkar13/loudio/releases/tag/v1.0.5</url>
+      <description>
+        <p>
+          Speech in any language is transcribed in that language, System
+          Readiness opens in its own window, and Loudio can now update itself.
+        </p>
+        <ul>
+          <li>Stop rewriting non-English speech as English when the language is set to auto</li>
+          <li>Translate into a language of your choice, not only English</li>
+          <li>Open System Readiness in its own window, with in-app application updates</li>
+          <li>Remember microphone access instead of asking on every launch</li>
+          <li>Keep the compact window on screen after a reload on HiDPI displays</li>
+          <li>Stop duplicated audio and unplayable recordings caused by overlapping capture</li>
+          <li>Refuse model downloads that would fill the disk</li>
+        </ul>
+      </description>
+    </release>
     <release version="1.0.4" date="2026-08-25">
       <url>https://github.com/sudsarkar13/loudio/releases/tag/v1.0.4</url>
       <description>

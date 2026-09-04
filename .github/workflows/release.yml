@@ -498,7 +498,10 @@ jobs:
         working-directory: dist
         run: |
           set -euo pipefail
-          sha256sum * > SHA256SUMS
+          # `--` so an artifact whose name begins with a dash is treated as a
+          # file rather than an option. Bare filenames are preserved, so the
+          # published SHA256SUMS still verifies with a plain `sha256sum -c`.
+          sha256sum -- * > SHA256SUMS
           cat SHA256SUMS
 
       - name: Compose the updater manifest

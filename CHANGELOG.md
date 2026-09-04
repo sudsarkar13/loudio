@@ -6,6 +6,8 @@ publish a tag with no matching section.
 
 ## [Unreleased]
 
+## [v1.0.5] - 2026-09-04
+
 ### 🐛 Fixed Bugs & Issues
 - **Speech in any language other than English was silently rewritten as
   English.** whisper.cpp defaults its language flag to `en` rather than

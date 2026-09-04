@@ -13,7 +13,13 @@ METAINFO="$ROOT/src-tauri/appstream/io.github.sudsarkar13.loudio.metainfo.xml"
 WARN_ONLY=0
 [ "${1:-}" = "--warn-only" ] && WARN_ONLY=1
 
-mapfile -t URLS < <(python3 - "$METAINFO" <<'PYEOF'
+# Read with a while-loop rather than `mapfile`: that is a bash 4 builtin, and
+# macOS still ships bash 3.2 — so on a maintainer's Mac this script died before
+# it checked a single URL, which defeats running the release checks locally.
+URLS=()
+while IFS= read -r line; do
+  [ -n "$line" ] && URLS+=("$line")
+done < <(python3 - "$METAINFO" <<'PYEOF'
 import sys, xml.etree.ElementTree as ET
 root = ET.parse(sys.argv[1]).getroot()
 for img in root.findall("screenshots/screenshot/image"):
@@ -22,7 +28,7 @@ for img in root.findall("screenshots/screenshot/image"):
 PYEOF
 )
 
-if [ "${#URLS[@]}" -eq 0 ]; then
+if [ "${#URLS[@]:-0}" -eq 0 ]; then
   echo "::error::no screenshot URLs found in $METAINFO"
   exit 1
 fi
